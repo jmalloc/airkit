@@ -7,4 +7,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/jmalloc/airkit)](https://goreportcard.com/report/github.com/jmalloc/airkit)
 
 AirKit is an Apple HomeKit bridge for MyAir Home Air Conditioning Controllers.
+
 **This project is in its infancy and is highly experimental.**

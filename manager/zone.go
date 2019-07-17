@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
@@ -12,9 +13,8 @@ import (
 // ZoneManager manages the state of a zone.
 type ZoneManager struct {
 	commands   chan<- myplace.Command
-	acID       string
-	zoneID     string
-	isMyZone   bool
+	ac         *myplace.AirCon
+	z          *myplace.Zone
 	accessory  *accessory.Accessory
 	thermostat *service.Thermostat
 }
@@ -29,8 +29,8 @@ func NewZoneManager(
 
 	m := &ZoneManager{
 		commands: commands,
-		acID:     ac.ID,
-		zoneID:   z.ID,
+		ac:       ac,
+		z:        z,
 		accessory: accessory.New(
 			accessory.Info{
 				Name:         n,
@@ -80,14 +80,12 @@ func (m *ZoneManager) Accessories() []*accessory.Accessory {
 
 // Update updates the accessory to represent the given state.
 func (m *ZoneManager) Update(s *myplace.System) {
-	ac := s.AirConByID[m.acID]
-	z := ac.ZoneByID[m.zoneID]
+	ac := s.AirConByID[m.ac.ID]
+	z := ac.ZoneByID[m.z.ID]
 	m.update(ac, z)
 }
 
 func (m *ZoneManager) update(ac *myplace.AirCon, z *myplace.Zone) {
-	m.isMyZone = ac.Details.MyZoneNumber == z.Number
-
 	m.thermostat.CurrentTemperature.SetValue(z.CurrentTemp)
 	m.thermostat.TargetTemperature.SetValue(z.TargetTemp)
 
@@ -97,94 +95,59 @@ func (m *ZoneManager) update(ac *myplace.AirCon, z *myplace.Zone) {
 		return
 	}
 
-	// unsupported modes are treated equivalent to "off"
-	if ac.Details.Power == myplace.AirConPowerOff ||
-		ac.Details.Mode == myplace.AirConModeVent ||
-		ac.Details.Mode == myplace.AirConModeDry {
-		m.thermostat.TargetHeatingCoolingState.SetValue(characteristic.TargetHeatingCoolingStateAuto)
-		m.thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
-		return
-	}
-
-	if ac.Details.Mode == myplace.AirConModeCool {
-		m.thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateCool)
-	} else if ac.Details.Mode == myplace.AirConModeHeat {
-		m.thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateHeat)
-	}
-
-	if !m.isMyZone {
+	if ac.Details.MyZoneNumber != z.Number {
 		m.thermostat.TargetHeatingCoolingState.SetValue(characteristic.TargetHeatingCoolingStateAuto)
 	} else if ac.Details.Mode == myplace.AirConModeCool {
 		m.thermostat.TargetHeatingCoolingState.SetValue(characteristic.TargetHeatingCoolingStateCool)
 	} else if ac.Details.Mode == myplace.AirConModeHeat {
 		m.thermostat.TargetHeatingCoolingState.SetValue(characteristic.TargetHeatingCoolingStateHeat)
+	} else {
+		// unsupported modes are treated equivalent to "off"
+		m.thermostat.TargetHeatingCoolingState.SetValue(characteristic.TargetHeatingCoolingStateOff)
 	}
+
+	if ac.Details.Power == myplace.AirConPowerOff ||
+		ac.Details.Mode == myplace.AirConModeVent ||
+		ac.Details.Mode == myplace.AirConModeDry {
+		// unsupported modes are treated equivalent to "off"
+		m.thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
+	} else if ac.Details.Mode == myplace.AirConModeCool {
+		m.thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateCool)
+	} else if ac.Details.Mode == myplace.AirConModeHeat {
+		m.thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateHeat)
+	}
+
+	m.ac = ac
+	m.z = z
 }
 
 func (m *ZoneManager) setTargetTemp(v float64) {
-	// 	log.Printf("--------- %s target temperature set to %f degrees",
-	// 		m.accessory.Info.Name.GetValue(),
-	// 		v,
-	// 	)
-	// 	// m.poller.Send(
-	// 	// 	api.UpdateTargetTemperature(
-	// 	// 		m.acKey,
-	// 	// 		m.zoneKey,
-	// 	// 		v,
-	// 	// 	),
-	// 	// )
+	log.Printf("%s/%s target temp = %0.1f%%", m.ac.ID, m.z.ID, v)
+
+	m.commands <- myplace.SetZoneTargetTemp(m.ac.ID, m.z.ID, v)
 }
 
 func (m *ZoneManager) setTargetState(v int) {
-	// 	switch v {
-	// 	case characteristic.TargetHeatingCoolingStateOff:
-	// 		log.Printf("--------- %s turned off",
-	// 			m.accessory.Info.Name.GetValue(),
-	// 		)
+	log.Printf("%s/%s target state = %d", m.ac.ID, m.z.ID, v)
 
-	// 		// if m.isMyZone {
-	// 		// 	m.poller.Send(
-	// 		// 		api.UpdateAirConState(
-	// 		// 			m.acKey,
-	// 		// 			api.Off,
-	// 		// 		),
-	// 		// 	)
-	// 		// } else {
-	// 		// 	m.poller.Send(
-	// 		// 		api.UpdateZoneState(
-	// 		// 			m.acKey,
-	// 		// 			m.zoneKey,
-	// 		// 			api.Closed,
-	// 		// 		),
-	// 		// 	)
-	// }
+	switch v {
+	case characteristic.TargetHeatingCoolingStateOff:
+		if m.ac.Details.MyZoneNumber == m.z.Number {
+			m.commands <- myplace.SetMyZone(m.ac.ID, m.ac.Details.ConstantZoneNumber)
+		}
+		m.commands <- myplace.SetZoneState(m.ac.ID, m.z.ID, myplace.ZoneStateClosed)
 
-	// 	case characteristic.TargetHeatingCoolingStateCool:
-	// 		log.Printf("--------- %s set to cool",
-	// 			m.accessory.Info.Name.GetValue(),
-	// 		)
-	// 		// m.poller.Send(
-	// 		// 	api.UpdateModeAndMyZone(m.acKey, api.Cool, m.number),
-	// 		// )
+	case characteristic.TargetHeatingCoolingStateCool:
+		m.commands <- myplace.SetMyZone(m.ac.ID, m.z.Number)
+		m.commands <- myplace.SetAirConMode(m.ac.ID, myplace.AirConModeCool)
+		m.commands <- myplace.SetZoneState(m.ac.ID, m.z.ID, myplace.ZoneStateOpen)
 
-	// 	case characteristic.TargetHeatingCoolingStateHeat:
-	// 		log.Printf("--------- %s set to heat",
-	// 			m.accessory.Info.Name.GetValue(),
-	// 		)
-	// 		// m.poller.Send(
-	// 		// 	api.UpdateModeAndMyZone(m.acKey, api.Heat, m.number),
-	// 		// )
+	case characteristic.TargetHeatingCoolingStateHeat:
+		m.commands <- myplace.SetMyZone(m.ac.ID, m.z.Number)
+		m.commands <- myplace.SetAirConMode(m.ac.ID, myplace.AirConModeHeat)
+		m.commands <- myplace.SetZoneState(m.ac.ID, m.z.ID, myplace.ZoneStateOpen)
 
-	// 	case characteristic.TargetHeatingCoolingStateAuto:
-	// 		log.Printf("--------- %s set to auto",
-	// 			m.accessory.Info.Name.GetValue(),
-	// 		)
-	// 		// m.poller.Send(
-	// 		// 	api.UpdateZoneState(
-	// 		// 		m.acKey,
-	// 		// 		m.zoneKey,
-	// 		// 		api.Open,
-	// 		// 	),
-	// 		// )
-	// 	}
+	case characteristic.TargetHeatingCoolingStateAuto:
+		m.commands <- myplace.SetZoneState(m.ac.ID, m.z.ID, myplace.ZoneStateOpen)
+	}
 }

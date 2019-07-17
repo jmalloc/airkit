@@ -88,6 +88,20 @@ func SetAirConPower(id string, v AirConPower) Command {
 	}
 }
 
+// SetAirConMode returns a command that sets the mode of an air-conditioning unit.
+func SetAirConMode(id string, v AirConMode) Command {
+	return func(req map[string]*AirCon) {
+		ac, ok := req[id]
+
+		if !ok {
+			ac = &AirCon{}
+			req[id] = ac
+		}
+
+		ac.Details.Mode = v
+	}
+}
+
 // SetFanSpeed returns a command that sets the fan mode of an air-conditioning unit.
 func SetFanSpeed(id string, v FanSpeed) Command {
 	return func(req map[string]*AirCon) {

@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/brutella/hc/characteristic"
 
@@ -13,7 +14,7 @@ import (
 // AirConManager manages the stateo of an air-conditioning unit accessory.
 type AirConManager struct {
 	commands     chan<- myplace.Command
-	id           string
+	ac           *myplace.AirCon
 	acAccessory  *accessory.Accessory
 	fanAccessory *accessory.Accessory
 	power        *service.Switch
@@ -29,7 +30,7 @@ func NewAirConManager(
 ) *AirConManager {
 	m := &AirConManager{
 		commands: commands,
-		id:       ac.ID,
+		ac:       ac,
 		acAccessory: accessory.New(
 			accessory.Info{
 				Name:         ac.Details.Name,
@@ -91,7 +92,7 @@ func (m *AirConManager) Accessories() []*accessory.Accessory {
 
 // Update updates the accessory to represent the given state.
 func (m *AirConManager) Update(s *myplace.System) {
-	ac := s.AirConByID[m.id]
+	ac := s.AirConByID[m.ac.ID]
 	m.update(ac)
 }
 
@@ -105,27 +106,35 @@ func (m *AirConManager) update(ac *myplace.AirCon) {
 		m.fan.Active.SetValue(characteristic.ActiveActive)
 		m.speed.SetValue(marshalFanSpeed(ac.Details.FanSpeed))
 	}
+
+	m.ac = ac
 }
 
 func (m *AirConManager) setPower(v bool) {
+	log.Printf("%s power = %v", m.ac.ID, v)
+
 	if v {
-		m.commands <- myplace.SetAirConPower(m.id, myplace.AirConPowerOn)
+		m.commands <- myplace.SetAirConPower(m.ac.ID, myplace.AirConPowerOn)
 	} else {
-		m.commands <- myplace.SetAirConPower(m.id, myplace.AirConPowerOff)
+		m.commands <- myplace.SetAirConPower(m.ac.ID, myplace.AirConPowerOff)
 	}
 }
 
 func (m *AirConManager) setFanActive(v int) {
+	log.Printf("%s manual fan override = %v", m.ac.ID, v)
+
 	switch v {
 	case characteristic.ActiveActive:
-		m.commands <- myplace.SetFanSpeed(m.id, m.prevSpeed)
+		m.commands <- myplace.SetFanSpeed(m.ac.ID, m.prevSpeed)
 	case characteristic.ActiveInactive:
-		m.commands <- myplace.SetFanSpeed(m.id, myplace.FanSpeedAuto)
+		m.commands <- myplace.SetFanSpeed(m.ac.ID, myplace.FanSpeedAuto)
 	}
 }
 
 func (m *AirConManager) setFanSpeed(v float64) {
-	m.commands <- myplace.SetFanSpeed(m.id, unmarshalFanSpeed(v))
+	log.Printf("%s manual fan speed = %0.1f%%", m.ac.ID, v)
+
+	m.commands <- myplace.SetFanSpeed(m.ac.ID, unmarshalFanSpeed(v))
 }
 
 func marshalFanSpeed(v myplace.FanSpeed) float64 {
