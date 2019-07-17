@@ -2,86 +2,61 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
+	// dnslog "github.com/brutella/dnssd/log"
 	"github.com/brutella/hc"
 	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
-	"github.com/jmalloc/airkit/api"
+	"github.com/jmalloc/airkit/manager"
+	"github.com/jmalloc/airkit/myplace"
 )
 
 func main() {
+	// dnslog.Debug.Enable()
+
+	rand.Seed(time.Now().UnixNano())
+
 	ctx := context.Background()
-	cli := api.Client{
-		Address: os.Getenv("MYAIR_API_ADDRESS"),
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cli := &myplace.Client{
+		Host: os.Getenv("AIRKIT_API_HOST"),
+		Port: os.Getenv("AIRKIT_API_PORT"),
 	}
 
-	sys, err := cli.System(ctx)
+	system, err := cli.Read(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	bridge := accessory.NewBridge(
-		accessory.Info{
-			Name:         "MyAir",
-			Manufacturer: "Advantage Air / James Harris",
-			Model:        sys.Details.TouchScreenModel,
-			SerialNumber: sys.Details.TouchScreenID,
-			FirmwareRevision: fmt.Sprintf(
-				"MyPlace: %s (%s) / AirKit: %s",
-				sys.Details.AppVersion,
-				sys.Details.ServiceVersion,
-				"0.0.0",
-			),
-		},
-	)
+	bridge := manager.NewBridge(system)
+
+	commands := make(chan myplace.Command)
+	var managers []manager.AccessoryManager
+
+	for _, ac := range system.AirCons {
+		for _, z := range ac.Zones {
+			m := manager.NewZoneManager(commands, ac, z)
+			managers = append(managers, m)
+		}
+
+		m := manager.NewAirConManager(commands, ac)
+		managers = append(managers, m)
+	}
 
 	var accessories []*accessory.Accessory
-	thermostats := map[int]*accessory.Thermostat{}
-
-	for _, ac := range sys.AirCons {
-		for _, z := range ac.Zones {
-			acc := accessory.NewThermostat(
-				accessory.Info{
-					Name: z.Name + " Thermostat",
-				},
-				z.CurrentTemp,
-				0,
-				100,
-				0.1,
-			)
-
-			if ac.IsOn() && z.IsOn() {
-				switch ac.Details.Mode {
-				case api.Heat:
-					acc.Thermostat.CurrentHeatingCoolingState.SetValue(1)
-				case api.Cool:
-					acc.Thermostat.CurrentHeatingCoolingState.SetValue(2)
-				case api.Vent:
-					acc.Thermostat.CurrentHeatingCoolingState.SetValue(3) // reserved, what else do we do?
-				case api.Dry:
-					acc.Thermostat.CurrentHeatingCoolingState.SetValue(4) // reserved, what else do we do?
-				}
-
-			}
-
-			CurrentHeatingCoolingState * characteristic.CurrentHeatingCoolingState
-			TargetHeatingCoolingState * characteristic.TargetHeatingCoolingState
-			CurrentTemperature * characteristic.CurrentTemperature
-			TargetTemperature * characteristic.TargetTemperature
-			TemperatureDisplayUnits * characteristic.TemperatureDisplayUnits
-
-			thermostats[z.Number] = thermo
-			accessories = append(accessories, acc.Accessory)
-		}
+	for _, m := range managers {
+		accessories = append(accessories, m.Accessories()...)
 	}
 
 	xport, err := hc.NewIPTransport(
 		hc.Config{
 			StoragePath: "artifacts/db",
-			Pin:         "32191111",
+			Pin:         os.Getenv("AIRKIT_PIN"),
 		},
 		bridge.Accessory,
 		accessories...,
@@ -91,8 +66,50 @@ func main() {
 	}
 
 	hc.OnTermination(func() {
+		cancel()
 		<-xport.Stop()
 	})
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case c := <-commands:
+				cmds := []myplace.Command{c}
+				debounce := time.NewTimer(250 * time.Millisecond)
+
+			loop:
+				for {
+					select {
+					case c := <-commands:
+						cmds = append(cmds, c)
+					case <-debounce.C:
+						break loop
+					}
+				}
+				debounce.Stop()
+
+				err := cli.Write(ctx, cmds...)
+				if err != nil {
+					log.Print(err)
+					continue
+				}
+
+			case <-time.After(2 * time.Second):
+				s, err := cli.Read(ctx)
+				if err != nil {
+					log.Print(err)
+					continue
+				}
+
+				for _, m := range managers {
+					m.Update(s)
+				}
+			}
+		}
+	}()
 
 	xport.Start()
 }
