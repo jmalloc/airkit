@@ -10,6 +10,10 @@ import (
 	"github.com/jmalloc/airkit/myplace"
 )
 
+const (
+	constantZoneAttempts = 3
+)
+
 // AirConManager manages the state of thermostat accessories for each zone of an
 // air-conditioning unit.
 type AirConManager struct {
@@ -158,7 +162,7 @@ func (m *AirConManager) emit() {
 			if m.ac.IsConstantZone(z) {
 				closedConstantZones = true
 
-				if m.constantZoneAttempts >= 3 {
+				if m.constantZoneAttempts >= constantZoneAttempts {
 					continue
 				}
 			} else {
@@ -170,11 +174,13 @@ func (m *AirConManager) emit() {
 	}
 
 	if modifiedNonConstantZones {
+		if m.constantZoneAttempts > constantZoneAttempts {
+			fmt.Println("enabling closing of constant zones")
+		}
 		m.constantZoneAttempts = 0
-		fmt.Println("enabling closing of constant zones")
 	} else if closedConstantZones {
 		m.constantZoneAttempts++
-		if m.constantZoneAttempts == 4 {
+		if m.constantZoneAttempts == constantZoneAttempts+1 {
 			fmt.Println("disabling closing of constant zones")
 		}
 	}
