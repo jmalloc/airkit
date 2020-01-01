@@ -89,6 +89,42 @@ func printZone(cmd *cobra.Command, ac *myplace.AirCon, z *myplace.Zone, pad int)
 		z.Name,
 	)
 
+	if ac.IsConstantZone(z) {
+		cmd.Print("  C")
+	} else {
+		cmd.Print("   ")
+	}
+
+	cmd.Print("  ")
+
+	if z.HasTempControl == 0 {
+		cmd.Print("??.?°         ")
+	} else if z.State == myplace.ZoneStateClosed {
+		cmd.Printf(
+			"%2.1f°   %2.1f°",
+			z.CurrentTemp,
+			z.TargetTemp,
+		)
+	} else if z.CurrentTemp < z.TargetTemp {
+		cmd.Printf(
+			"%2.1f° < %2.1f°",
+			z.CurrentTemp,
+			z.TargetTemp,
+		)
+	} else if z.CurrentTemp > z.TargetTemp {
+		cmd.Printf(
+			"%2.1f° > %2.1f°",
+			z.CurrentTemp,
+			z.TargetTemp,
+		)
+	} else {
+		cmd.Printf(
+			"%2.1f° = %2.1f°",
+			z.CurrentTemp,
+			z.TargetTemp,
+		)
+	}
+
 	if ac.IsMyZone(z) {
 		cmd.Print(" MY")
 	} else if z.State == myplace.ZoneStateOpen {
@@ -97,41 +133,13 @@ func printZone(cmd *cobra.Command, ac *myplace.AirCon, z *myplace.Zone, pad int)
 		cmd.Print("   ")
 	}
 
-	if ac.IsConstantZone(z) {
-		cmd.Print(" C")
-	} else {
-		cmd.Print("  ")
-	}
-
 	if z.State == myplace.ZoneStateOpen {
 		cmd.Printf(
-			"  %3d%%",
+			" %3d%%",
 			z.DamperPercentage,
 		)
 	} else {
-		cmd.Print("     -")
-	}
-
-	if z.HasTempControl != 0 {
-		cmd.Print("  ")
-
-		if z.State == myplace.ZoneStateClosed {
-			cmd.Printf(
-				"         %2.1f°",
-				z.TargetTemp,
-			)
-		} else if z.CurrentTemp == z.TargetTemp {
-			cmd.Printf(
-				"%2.1f°         ",
-				z.CurrentTemp,
-			)
-		} else {
-			cmd.Printf(
-				"%2.1f° -> %2.1f°",
-				z.CurrentTemp,
-				z.TargetTemp,
-			)
-		}
+		cmd.Print("    -")
 	}
 
 	if z.Error != myplace.ZoneErrorNone {
