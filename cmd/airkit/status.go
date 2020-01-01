@@ -58,8 +58,10 @@ func printAC(cmd *cobra.Command, ac *myplace.AirCon) {
 	if ac.Details.MyAutoEnabled {
 		cmd.Printf(" [myauto enabled]")
 	}
-	if ac.Details.MySleepSaverEnabled {
-		cmd.Printf(" [mysleep$aver enabled]")
+	if ac.Details.MySleepSaverRunning {
+		cmd.Printf(" [mysleep$aver enabled - active]")
+	} else if ac.Details.MySleepSaverEnabled {
+		cmd.Printf(" [mysleep$aver enabled - inactive]")
 	}
 	cmd.Println("")
 
