@@ -2,114 +2,47 @@ package main
 
 import (
 	"context"
-	"log"
-	"math/rand"
 	"os"
-	"time"
 
-	// dnslog "github.com/brutella/dnssd/log"
-	"github.com/brutella/hc"
-	"github.com/brutella/hc/accessory"
-	"github.com/jmalloc/airkit/manager"
-	"github.com/jmalloc/airkit/myplace"
+	"github.com/spf13/cobra"
+	"go.uber.org/dig"
 )
 
+var root = &cobra.Command{
+	Use:   "airkit",
+	Short: "Integrate MyPlace air-conditioners with Apple HomeKit.",
+}
+
+var container = dig.New()
+
 func main() {
-	// dnslog.Debug.Enable()
-
-	rand.Seed(time.Now().UnixNano())
-
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cli := &myplace.Client{
-		Host: os.Getenv("AIRKIT_API_HOST"),
-		Port: os.Getenv("AIRKIT_API_PORT"),
+	root.PersistentPreRunE = func(*cobra.Command, []string) error {
+		return container.Provide(func() context.Context {
+			return ctx
+		})
 	}
 
-	system, err := cli.Read(ctx)
-	if err != nil {
-		log.Fatal(err)
+	if err := root.Execute(); err != nil {
+		os.Exit(1)
 	}
+}
 
-	bridge := manager.NewBridge(system)
-
-	commands := make(chan myplace.Command)
-	var managers []manager.AccessoryManager
-
-	for _, ac := range system.AirCons {
-		for _, z := range ac.Zones {
-			m := manager.NewZoneManager(commands, ac, z)
-			managers = append(managers, m)
+// runE wraps a command run function, causing its arguments to be provided by
+// the DI container.
+func runE(fn interface{}) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		prov := func() (*cobra.Command, []string) {
+			return cmd, args
 		}
 
-		m := manager.NewAirConManager(commands, ac)
-		managers = append(managers, m)
-	}
-
-	var accessories []*accessory.Accessory
-	for _, m := range managers {
-		accessories = append(accessories, m.Accessories()...)
-	}
-
-	xport, err := hc.NewIPTransport(
-		hc.Config{
-			StoragePath: "artifacts/db",
-			Pin:         os.Getenv("AIRKIT_PIN"),
-		},
-		bridge.Accessory,
-		accessories...,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	hc.OnTermination(func() {
-		cancel()
-		<-xport.Stop()
-	})
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-
-			case c := <-commands:
-				cmds := []myplace.Command{c}
-				debounce := time.NewTimer(250 * time.Millisecond)
-
-			loop:
-				for {
-					select {
-					case c := <-commands:
-						cmds = append(cmds, c)
-					case <-debounce.C:
-						break loop
-					}
-				}
-				debounce.Stop()
-
-				err := cli.Write(ctx, cmds...)
-				if err != nil {
-					log.Print(err)
-					continue
-				}
-
-			case <-time.After(2 * time.Second):
-				s, err := cli.Read(ctx)
-				if err != nil {
-					log.Print(err)
-					continue
-				}
-
-				for _, m := range managers {
-					m.Update(s)
-				}
-			}
+		if err := container.Provide(prov); err != nil {
+			return err
 		}
-	}()
 
-	xport.Start()
+		err := container.Invoke(fn)
+		return dig.RootCause(err)
+	}
 }

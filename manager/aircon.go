@@ -99,9 +99,10 @@ func (m *AirConManager) Update(s *myplace.System) {
 func (m *AirConManager) update(ac *myplace.AirCon) {
 	m.power.On.SetValue(ac.Details.Power == myplace.AirConPowerOn)
 
-	if ac.Details.FanSpeed == myplace.FanSpeedAuto {
+	switch ac.Details.FanSpeed {
+	case myplace.FanSpeedAutoHardware, myplace.FanSpeedAutoSoftware:
 		m.fan.Active.SetValue(characteristic.ActiveInactive)
-	} else {
+	default:
 		m.prevSpeed = ac.Details.FanSpeed
 		m.fan.Active.SetValue(characteristic.ActiveActive)
 		m.speed.SetValue(marshalFanSpeed(ac.Details.FanSpeed))
@@ -127,7 +128,11 @@ func (m *AirConManager) setFanActive(v int) {
 	case characteristic.ActiveActive:
 		m.commands <- myplace.SetFanSpeed(m.ac.ID, m.prevSpeed)
 	case characteristic.ActiveInactive:
-		m.commands <- myplace.SetFanSpeed(m.ac.ID, myplace.FanSpeedAuto)
+		if m.ac.Details.MyFanEnabled {
+			m.commands <- myplace.SetFanSpeed(m.ac.ID, myplace.FanSpeedAutoSoftware)
+		} else {
+			m.commands <- myplace.SetFanSpeed(m.ac.ID, myplace.FanSpeedAutoHardware)
+		}
 	}
 }
 

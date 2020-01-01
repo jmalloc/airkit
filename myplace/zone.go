@@ -11,6 +11,41 @@ const (
 	ZoneStateClosed ZoneState = "close" // note: value is 'close', without the trailing 'd'.
 )
 
+func (s ZoneState) String() string {
+	switch s {
+	case ZoneStateOpen:
+		return "on"
+	case ZoneStateClosed:
+		return "off"
+	default:
+		return "unknown"
+	}
+}
+
+// ZoneError is an enumeration of the zone error codes.
+type ZoneError int
+
+const (
+	// ZoneErrorNone is an error code indicating that there are no known errors.
+	ZoneErrorNone ZoneError = 0
+
+	// ZoneErrorNoSignal is the error code given when a zone's temperature
+	// sensor can not be reached (due to signal loss, or a dead battery, for
+	// example). Referred to as AA84 in the MyPlace application.
+	ZoneErrorNoSignal ZoneError = 2
+)
+
+func (e ZoneError) String() string {
+	switch e {
+	case ZoneErrorNone:
+		return "ok"
+	case ZoneErrorNoSignal:
+		return "no signal"
+	default:
+		return "unknown error"
+	}
+}
+
 // Zone is a vent or collection of vents connected to a ducted air-conditioning
 // unit.
 type Zone struct {
@@ -22,6 +57,7 @@ type Zone struct {
 	HasTempControl   int       `json:"type,omitempty"`
 	CurrentTemp      float64   `json:"measuredTemp,omitempty"`
 	TargetTemp       float64   `json:"setTemp,omitempty"`
+	Error            ZoneError `json:"error,omitempty"`
 }
 
 func (z *Zone) populate(id string) {

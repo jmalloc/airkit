@@ -11,6 +11,17 @@ const (
 	AirConPowerOff AirConPower = "off"
 )
 
+func (p AirConPower) String() string {
+	switch p {
+	case AirConPowerOn:
+		return "on"
+	case AirConPowerOff:
+		return "off"
+	default:
+		return "unknown"
+	}
+}
+
 // AirConMode is an enumeration the operating modes of an air-conditioning unit.
 type AirConMode string
 
@@ -26,7 +37,27 @@ const (
 
 	// AirConModeDry is a mode that lowers the humidity of circulated air.
 	AirConModeDry AirConMode = "dry"
+
+	// AirConModeAuto is a mode that sets the actual mode automatically.
+	AirConModeAuto AirConMode = "myauto"
 )
+
+func (m AirConMode) String() string {
+	switch m {
+	case AirConModeHeat:
+		return "heat"
+	case AirConModeCool:
+		return "cool"
+	case AirConModeVent:
+		return "fan" // fan is what's shown in the MyPlace app.
+	case AirConModeDry:
+		return "dry"
+	case AirConModeAuto:
+		return "auto"
+	default:
+		return "unknown"
+	}
+}
 
 // FanSpeed is an enumeration of fan speeds of an air-conditioning unit.
 type FanSpeed string
@@ -41,9 +72,31 @@ const (
 	// FanSpeedHigh is the fastest fan speed setting.
 	FanSpeedHigh FanSpeed = "high"
 
-	// FanSpeedAuto is means the fan speed is automatically adjusted.
-	FanSpeedAuto FanSpeed = "auto"
+	// FanSpeedAutoHardware is means the fan speed is automatically adjusted by the
+	// air-conditioning unit. This option is only usable if the "MyFan" feature
+	// is DISABLED.
+	FanSpeedAutoHardware FanSpeed = "auto"
+
+	// FanSpeedAutoSoftware is means the fan speed is automatically adjusted by
+	// the MyPlace software. This option is only usable if the "MyFan" feature
+	// is ENABLED.
+	FanSpeedAutoSoftware FanSpeed = "autoAA"
 )
+
+func (s FanSpeed) String() string {
+	switch s {
+	case FanSpeedLow:
+		return "low"
+	case FanSpeedMedium:
+		return "medium"
+	case FanSpeedHigh:
+		return "high"
+	case FanSpeedAutoHardware, FanSpeedAutoSoftware:
+		return "auto"
+	default:
+		return "unknown"
+	}
+}
 
 // AirCon is a ducted air-conditioning unit.
 type AirCon struct {
@@ -54,6 +107,14 @@ type AirCon struct {
 		Mode                 AirConMode  `json:"mode,omitempty"`
 		Power                AirConPower `json:"state,omitempty"`
 		FilterStatus         int         `json:"filterCleanStatus,omitempty"`
+		MyFanEnabled         bool        `json:"aaAutoFanModeEnabled,omitempty"`
+		MyTempEnabled        bool        `json:"climateControlModeEnabled,omitempty"`
+		MyTempRunning        bool        `json:"climateControlModeIsRunning,omitempty"`
+		MyAutoEnabled        bool        `json:"myAutoModeEnabled,omitempty"`
+		MyAutoRunning        bool        `json:"myAutoModeIsRunning,omitempty"`
+		MyAutoMode           AirConMode  `json:"myAutoModeCurrentSetMode,omitempty"`
+		MySleepSaverEnabled  bool        `json:"quietNightModeEnabled"`
+		MySleepSaverRunning  bool        `json:"quietNightModeIsRunning"`
 		MyZoneNumber         int         `json:"myZone,omitempty"`
 		ConstantZoneNumber   int         `json:"constant1,omitempty"`
 		FirmwareMajorVersion int         `json:"cbFWRevMajor,omitempty"`
@@ -71,6 +132,11 @@ func (ac *AirCon) populate(id string) {
 		z.populate(id)
 		ac.Zones[z.Number-1] = z
 	}
+}
+
+// MyZone returns the currently selected "MyZone".
+func (ac *AirCon) MyZone() *Zone {
+	return ac.Zones[ac.Details.MyZoneNumber-1]
 }
 
 // SetAirConPower returns a command that turns and air-conditioning unit on or

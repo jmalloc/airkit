@@ -1,4 +1,8 @@
--include artifacts/make/go/Makefile
+-include .makefiles/Makefile
+-include .makefiles/pkg/go/v1/Makefile
 
-artifacts/make/%:
-	curl -sf https://make-files.github.io/fetch | bash /dev/stdin $*
+run: artifacts/build/debug/$(GOHOSTOS)/$(GOHOSTARCH)/airkit
+	$< $(RUN_ARGS)
+
+.makefiles/%:
+	curl -sfL https://makefiles.dev/v1 | bash /dev/stdin "$@"
