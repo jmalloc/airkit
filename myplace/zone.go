@@ -40,7 +40,7 @@ func (e ZoneError) String() string {
 	case ZoneErrorNone:
 		return "ok"
 	case ZoneErrorNoSignal:
-		return "no signal"
+		return "no signal from temp. sensor"
 	default:
 		return "unknown error"
 	}

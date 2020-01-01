@@ -4,23 +4,19 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/brutella/hc/characteristic"
-
 	"github.com/brutella/hc/accessory"
+	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
 	"github.com/jmalloc/airkit/myplace"
 )
 
-// AirConManager manages the stateo of an air-conditioning unit accessory.
+// AirConManager manages the state of thermostat accessories for each zone of an
+// air-conditioning unit.
 type AirConManager struct {
-	commands     chan<- myplace.Command
-	ac           *myplace.AirCon
-	acAccessory  *accessory.Accessory
-	fanAccessory *accessory.Accessory
-	power        *service.Switch
-	fan          *service.FanV2
-	speed        *characteristic.RotationSpeed
-	prevSpeed    myplace.FanSpeed
+	commands             chan<- myplace.Command
+	ac                   *myplace.AirCon
+	thermostats          []*accessory.Thermostat
+	constantZoneAttempts int
 }
 
 // NewAirConManager returns a manager for the given air-conditioning unit.
@@ -31,138 +27,249 @@ func NewAirConManager(
 	m := &AirConManager{
 		commands: commands,
 		ac:       ac,
-		acAccessory: accessory.New(
-			accessory.Info{
-				Name:         ac.Details.Name,
-				Manufacturer: "Advantage Air & James Harris",
-				Model:        "MyAir Air Conditioner",
-				SerialNumber: ac.ID,
-				FirmwareRevision: fmt.Sprintf(
-					"%d.%d",
-					ac.Details.FirmwareMajorVersion,
-					ac.Details.FirmwareMinorVersion,
-				),
-			},
-			accessory.TypeAirConditioner,
-		),
-		fanAccessory: accessory.New(
-			accessory.Info{
-				Name:         ac.Details.Name + " Fan Speed Override",
-				Manufacturer: "Advantage Air & James Harris",
-				Model:        "MyAir Air Conditioner Fan Speed Override",
-				SerialNumber: ac.ID,
-				FirmwareRevision: fmt.Sprintf(
-					"%d.%d",
-					ac.Details.FirmwareMajorVersion,
-					ac.Details.FirmwareMinorVersion,
-				),
-			},
-			accessory.TypeAirConditioner,
-		),
-		power:     service.NewSwitch(),
-		fan:       service.NewFanV2(),
-		speed:     characteristic.NewRotationSpeed(),
-		prevSpeed: myplace.FanSpeedMedium,
 	}
 
-	m.acAccessory.AddService(m.power.Service)
-	m.power.On.SetEventsEnabled(true)
-	m.power.On.OnValueRemoteUpdate(m.setPower)
+	for _, z := range ac.Zones {
+		id := z.ID // capture loop variable
+		t := newThermostat(ac, z)
 
-	m.fanAccessory.AddService(m.fan.Service)
-	m.fan.Active.SetEventsEnabled(true)
-	m.fan.Active.OnValueRemoteUpdate(m.setFanActive)
+		t.Thermostat.TargetTemperature.OnValueRemoteUpdate(
+			func(v float64) { m.setTargetTemp(id, v) },
+		)
 
-	m.fan.AddCharacteristic(m.speed.Characteristic)
-	m.speed.SetEventsEnabled(true)
-	m.speed.OnValueRemoteUpdate(m.setFanSpeed)
+		t.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(
+			func(int) { m.emit() },
+		)
+
+		m.thermostats = append(m.thermostats, t)
+	}
 
 	m.update(ac)
 
 	return m
 }
 
+func newThermostat(ac *myplace.AirCon, z *myplace.Zone) *accessory.Thermostat {
+	n := fmt.Sprintf("%s - %s", ac.Details.Name, z.Name)
+	t := accessory.NewThermostat(
+		accessory.Info{
+			Name:         n,
+			Manufacturer: "Advantage Air & James Harris",
+			Model:        "MyAir Zone",
+			SerialNumber: n,
+			FirmwareRevision: fmt.Sprintf(
+				"%d.%d",
+				ac.Details.FirmwareMajorVersion,
+				ac.Details.FirmwareMinorVersion,
+			),
+		},
+		z.CurrentTemp,
+		16,
+		32,
+		1,
+	)
+
+	// set the current temperature range separately.
+	t.Thermostat.CurrentTemperature.SetMinValue(0)
+	t.Thermostat.CurrentTemperature.SetMaxValue(100)
+	t.Thermostat.CurrentTemperature.SetStepValue(0.1)
+
+	return t
+}
+
 // Accessories returns the managed accessories.
 func (m *AirConManager) Accessories() []*accessory.Accessory {
-	return []*accessory.Accessory{
-		m.acAccessory,
-		m.fanAccessory,
+	accessories := make([]*accessory.Accessory, len(m.thermostats))
+
+	for i, t := range m.thermostats {
+		accessories[i] = t.Accessory
 	}
+
+	return accessories
 }
 
 // Update updates the accessory to represent the given state.
 func (m *AirConManager) Update(s *myplace.System) {
 	ac := s.AirConByID[m.ac.ID]
 	m.update(ac)
-}
-
-func (m *AirConManager) update(ac *myplace.AirCon) {
-	m.power.On.SetValue(ac.Details.Power == myplace.AirConPowerOn)
-
-	switch ac.Details.FanSpeed {
-	case myplace.FanSpeedAutoHardware, myplace.FanSpeedAutoSoftware:
-		m.fan.Active.SetValue(characteristic.ActiveInactive)
-	default:
-		m.prevSpeed = ac.Details.FanSpeed
-		m.fan.Active.SetValue(characteristic.ActiveActive)
-		m.speed.SetValue(marshalFanSpeed(ac.Details.FanSpeed))
-	}
-
 	m.ac = ac
+
+	m.emit()
 }
 
-func (m *AirConManager) setPower(v bool) {
-	log.Printf("%s power = %v", m.ac.ID, v)
+// update updates the HomeKit accessories to match the air-conditioning unit.
+func (m *AirConManager) update(ac *myplace.AirCon) {
+	for i, z := range ac.Zones {
+		t := m.thermostats[i].Thermostat
 
-	if v {
-		m.commands <- myplace.SetAirConPower(m.ac.ID, myplace.AirConPowerOn)
-	} else {
-		m.commands <- myplace.SetAirConPower(m.ac.ID, myplace.AirConPowerOff)
-	}
-}
+		t.CurrentTemperature.SetValue(z.CurrentTemp)
+		t.TargetTemperature.SetValue(z.TargetTemp)
 
-func (m *AirConManager) setFanActive(v int) {
-	log.Printf("%s manual fan override = %v", m.ac.ID, v)
-
-	switch v {
-	case characteristic.ActiveActive:
-		m.commands <- myplace.SetFanSpeed(m.ac.ID, m.prevSpeed)
-	case characteristic.ActiveInactive:
-		if m.ac.Details.MyFanEnabled {
-			m.commands <- myplace.SetFanSpeed(m.ac.ID, myplace.FanSpeedAutoSoftware)
-		} else {
-			m.commands <- myplace.SetFanSpeed(m.ac.ID, myplace.FanSpeedAutoHardware)
+		if z.State == myplace.ZoneStateClosed {
+			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
+		} else if ac.Details.Power == myplace.AirConPowerOff ||
+			ac.Details.Mode == myplace.AirConModeVent ||
+			ac.Details.Mode == myplace.AirConModeDry {
+			// unsupported modes are reported as "off"
+			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
+		} else if ac.Details.Mode == myplace.AirConModeCool {
+			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateCool)
+		} else if ac.Details.Mode == myplace.AirConModeHeat {
+			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateHeat)
 		}
 	}
 }
 
-func (m *AirConManager) setFanSpeed(v float64) {
-	log.Printf("%s manual fan speed = %0.1f%%", m.ac.ID, v)
+// update updates the air-conditioning unit match HomeKit.
+func (m *AirConManager) emit() {
+	power, mode := m.targetMode()
 
-	m.commands <- myplace.SetFanSpeed(m.ac.ID, unmarshalFanSpeed(v))
-}
+	if power != m.ac.Details.Power {
+		m.commands <- myplace.SetAirConPower(m.ac.ID, power)
+	}
 
-func marshalFanSpeed(v myplace.FanSpeed) float64 {
-	switch v {
-	case myplace.FanSpeedHigh:
-		return 100
-	case myplace.FanSpeedMedium:
-		return 50
-	case myplace.FanSpeedLow:
-		return 25
-	default:
-		return 0
+	if power == myplace.AirConPowerOff {
+		return
+	}
+
+	if mode != m.ac.Details.Mode {
+		m.commands <- myplace.SetAirConMode(m.ac.ID, mode)
+	}
+
+	isCooling := mode == myplace.AirConModeCool
+	open, closed := m.partitionZones(isCooling)
+
+	modifiedNonConstantZones := false
+	for _, z := range open {
+		if m.ac.Zones[z.Number-1].State != myplace.ZoneStateOpen {
+			modifiedNonConstantZones = true
+			m.commands <- myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateOpen)
+		}
+	}
+
+	myzone := m.selectMyZone(isCooling, open)
+	if m.ac.Details.MyZoneNumber != myzone.Number {
+		m.commands <- myplace.SetMyZone(m.ac.ID, myzone.Number)
+	}
+
+	closedConstantZones := false
+	for _, z := range closed {
+		if m.ac.Zones[z.Number-1].State != myplace.ZoneStateClosed {
+			if m.ac.IsConstantZone(z) {
+				closedConstantZones = true
+
+				if m.constantZoneAttempts >= 3 {
+					continue
+				}
+			} else {
+				modifiedNonConstantZones = true
+			}
+
+			m.commands <- myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateClosed)
+		}
+	}
+
+	if modifiedNonConstantZones {
+		m.constantZoneAttempts = 0
+		fmt.Println("enabling closing of constant zones")
+	} else if closedConstantZones {
+		m.constantZoneAttempts++
+		if m.constantZoneAttempts == 4 {
+			fmt.Println("disabling closing of constant zones")
+		}
 	}
 }
 
-func unmarshalFanSpeed(v float64) myplace.FanSpeed {
-	if v == 0 {
-		return myplace.FanSpeedAuto
-	} else if v <= 33.333 {
-		return myplace.FanSpeedLow
-	} else if v <= 66.666 {
-		return myplace.FanSpeedMedium
-	} else {
-		return myplace.FanSpeedHigh
+// targetMode returns the desired power and mode for the air-conditioner.
+//
+// It always favours cooling over heating. That is, if any zone requires
+// cooling, the entire unit will be switched to cool and must reach temperature
+// before the unit will be switched to heat.
+func (m *AirConManager) targetMode() (myplace.AirConPower, myplace.AirConMode) {
+	var needsHeating bool
+
+	for _, t := range m.thermostats {
+		cool, heat := allowedZoneModes(t.Thermostat)
+		current := t.Thermostat.CurrentTemperature.GetValue()
+		target := t.Thermostat.TargetTemperature.GetValue()
+
+		if cool && current > target {
+			return myplace.AirConPowerOn, myplace.AirConModeCool
+		}
+
+		if heat && current < target {
+			if !needsHeating {
+				needsHeating = true
+			}
+		}
 	}
+
+	if needsHeating {
+		return myplace.AirConPowerOn, myplace.AirConModeHeat
+	}
+
+	return myplace.AirConPowerOff, m.ac.Details.Mode
+}
+
+// partioningZones returns two sets of zones, containing the zones that must be
+// opened, and closed, respectively.
+func (m *AirConManager) partitionZones(isCooling bool) (open, closed []*myplace.Zone) {
+	for i, z := range m.ac.Zones {
+		cool, heat := allowedZoneModes(m.thermostats[i].Thermostat)
+
+		if (isCooling && cool) || (!isCooling && heat) {
+			open = append(open, z)
+		} else {
+			closed = append(closed, z)
+		}
+	}
+
+	return open, closed
+}
+
+// selectMyZone returns the best zone to use as the MyZone.
+func (m *AirConManager) selectMyZone(isCooling bool, zones []*myplace.Zone) *myplace.Zone {
+	var my *myplace.Zone
+	var max float64
+
+	for _, z := range zones {
+		t := m.thermostats[z.Number-1].Thermostat
+
+		current := t.CurrentTemperature.GetValue()
+		target := t.TargetTemperature.GetValue()
+		delta := current - target
+
+		// if we're not cooling, favour the lowest delta (ie, current < target)
+		if !isCooling {
+			delta = -delta
+		}
+
+		if my == nil || delta > max {
+			my = z
+			max = delta
+		}
+	}
+
+	return my
+}
+
+// allowedZoneModes returns booleans indicating whether a thermostat allows a
+// zone to be heated and/or cooled.
+func allowedZoneModes(t *service.Thermostat) (cool, heat bool) {
+	switch t.TargetHeatingCoolingState.GetValue() {
+	case characteristic.TargetHeatingCoolingStateCool:
+		return true, false
+	case characteristic.TargetHeatingCoolingStateHeat:
+		return false, true
+	case characteristic.TargetHeatingCoolingStateAuto:
+		return true, true
+	default: // characteristic.TargetHeatingCoolingStateOff:
+		return false, false
+	}
+}
+
+func (m *AirConManager) setTargetTemp(id string, v float64) {
+	log.Printf("%s zone %s target temp = %.0f", m.ac.ID, id, v)
+	m.commands <- myplace.SetZoneTargetTemp(m.ac.ID, id, v)
+	m.emit()
 }

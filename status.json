@@ -2,7 +2,7 @@
     "aircons": {
         "ac1": {
             "info": {
-                "aaAutoFanModeEnabled": true,
+                "aaAutoFanModeEnabled": false,
                 "activationCodeStatus": "noCode",
                 "airconErrorCode": "",
                 "cbFWRevMajor": 8,
@@ -15,14 +15,14 @@
                 "constant3": 0,
                 "countDownToOff": 0,
                 "countDownToOn": 0,
-                "fan": "autoAA",
+                "fan": "auto",
                 "filterCleanStatus": 0,
                 "freshAirStatus": "none",
-                "mode": "myauto",
+                "mode": "cool",
                 "myAutoModeCurrentSetMode": "cool",
-                "myAutoModeEnabled": true,
-                "myAutoModeIsRunning": true,
-                "myZone": 5,
+                "myAutoModeEnabled": false,
+                "myAutoModeIsRunning": false,
+                "myZone": 2,
                 "name": "AC",
                 "noOfConstants": 2,
                 "noOfZones": 8,
@@ -38,47 +38,47 @@
                 "z01": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 25.0,
+                    "measuredTemp": 24.3,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
                     "name": "Bedroom",
                     "number": 1,
-                    "rssi": 53,
+                    "rssi": 52,
                     "setTemp": 24.0,
                     "state": "close",
                     "type": 1,
-                    "value": 100
+                    "value": 50
                 },
                 "z02": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 24.5,
+                    "measuredTemp": 23.1,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
                     "name": "Office",
                     "number": 2,
-                    "rssi": 46,
-                    "setTemp": 24.0,
+                    "rssi": 45,
+                    "setTemp": 23.0,
                     "state": "open",
                     "type": 1,
-                    "value": 65
+                    "value": 100
                 },
                 "z03": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 24.4,
+                    "measuredTemp": 24.0,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
                     "name": "Sewing",
                     "number": 3,
-                    "rssi": 48,
+                    "rssi": 46,
                     "setTemp": 24.0,
                     "state": "close",
                     "type": 1,
-                    "value": 55
+                    "value": 5
                 },
                 "z04": {
                     "error": 0,
@@ -89,16 +89,16 @@
                     "motionConfig": 1,
                     "name": "Bath",
                     "number": 4,
-                    "rssi": 44,
+                    "rssi": 43,
                     "setTemp": 24.0,
-                    "state": "open",
+                    "state": "close",
                     "type": 1,
                     "value": 5
                 },
                 "z05": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 24.2,
+                    "measuredTemp": 23.9,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
@@ -108,12 +108,12 @@
                     "setTemp": 24.0,
                     "state": "open",
                     "type": 1,
-                    "value": 100
+                    "value": 5
                 },
                 "z06": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 24.3,
+                    "measuredTemp": 23.2,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
@@ -123,37 +123,37 @@
                     "setTemp": 24.0,
                     "state": "open",
                     "type": 1,
-                    "value": 50
+                    "value": 5
                 },
                 "z07": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 24.2,
+                    "measuredTemp": 24.4,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
                     "name": "Guest",
                     "number": 7,
-                    "rssi": 94,
+                    "rssi": 96,
                     "setTemp": 24.0,
                     "state": "close",
                     "type": 1,
-                    "value": 40
+                    "value": 55
                 },
                 "z08": {
                     "error": 0,
                     "maxDamper": 100,
-                    "measuredTemp": 24.8,
+                    "measuredTemp": 24.9,
                     "minDamper": 0,
                     "motion": 0,
                     "motionConfig": 1,
                     "name": "Studio",
                     "number": 8,
-                    "rssi": 58,
+                    "rssi": 56,
                     "setTemp": 24.0,
                     "state": "close",
                     "type": 1,
-                    "value": 85
+                    "value": 90
                 }
             }
         }
