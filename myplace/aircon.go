@@ -113,8 +113,8 @@ type AirCon struct {
 		MyAutoEnabled        bool        `json:"myAutoModeEnabled,omitempty"`
 		MyAutoRunning        bool        `json:"myAutoModeIsRunning,omitempty"`
 		MyAutoMode           AirConMode  `json:"myAutoModeCurrentSetMode,omitempty"`
-		MySleepSaverEnabled  bool        `json:"quietNightModeEnabled"`
-		MySleepSaverRunning  bool        `json:"quietNightModeIsRunning"`
+		MySleepSaverEnabled  bool        `json:"quietNightModeEnabled,omitempty"`
+		MySleepSaverRunning  bool        `json:"quietNightModeIsRunning,omitempty"`
 		MyZoneNumber         int         `json:"myZone,omitempty"`
 		ConstantZone1Number  int         `json:"constant1,omitempty"`
 		ConstantZone2Number  int         `json:"constant2,omitempty"`
