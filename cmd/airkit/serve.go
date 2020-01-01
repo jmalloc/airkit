@@ -45,7 +45,7 @@ func init() {
 			}
 
 			bridge := manager.NewBridge(sys)
-			commands := make(chan myplace.Command, 100)
+			commands := make(chan []myplace.Command, 100)
 			var managers []manager.AccessoryManager
 
 			for _, ac := range sys.AirCons {
@@ -90,8 +90,8 @@ func init() {
 					case <-ctx.Done():
 						return
 
-					case c := <-commands:
-						err := cli.Write(ctx, c)
+					case cmds := <-commands:
+						err := cli.Write(ctx, cmds...)
 						if err != nil {
 							log.Print(err)
 							continue

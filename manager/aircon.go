@@ -2,7 +2,7 @@ package manager
 
 import (
 	"fmt"
-	"log"
+	"sync"
 
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
@@ -17,7 +17,9 @@ const (
 // AirConManager manages the state of thermostat accessories for each zone of an
 // air-conditioning unit.
 type AirConManager struct {
-	commands             chan<- myplace.Command
+	commands chan<- []myplace.Command
+
+	m                    sync.Mutex
 	ac                   *myplace.AirCon
 	thermostats          []*accessory.Thermostat
 	constantZoneAttempts int
@@ -25,7 +27,7 @@ type AirConManager struct {
 
 // NewAirConManager returns a manager for the given air-conditioning unit.
 func NewAirConManager(
-	commands chan<- myplace.Command,
+	commands chan<- []myplace.Command,
 	ac *myplace.AirCon,
 ) *AirConManager {
 	m := &AirConManager{
@@ -34,15 +36,22 @@ func NewAirConManager(
 	}
 
 	for _, z := range ac.Zones {
-		id := z.ID // capture loop variable
 		t := newThermostat(ac, z)
 
 		t.Thermostat.TargetTemperature.OnValueRemoteUpdate(
-			func(v float64) { m.setTargetTemp(id, v) },
+			func(v float64) {
+				m.m.Lock()
+				defer m.m.Unlock()
+				m.emit()
+			},
 		)
 
 		t.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(
-			func(int) { m.emit() },
+			func(int) {
+				m.m.Lock()
+				defer m.m.Unlock()
+				m.emit()
+			},
 		)
 
 		m.thermostats = append(m.thermostats, t)
@@ -94,6 +103,9 @@ func (m *AirConManager) Accessories() []*accessory.Accessory {
 
 // Update updates the accessory to represent the given state.
 func (m *AirConManager) Update(s *myplace.System) {
+	m.m.Lock()
+	defer m.m.Unlock()
+
 	ac := s.AirConByID[m.ac.ID]
 	m.update(ac)
 	m.ac = ac
@@ -126,10 +138,26 @@ func (m *AirConManager) update(ac *myplace.AirCon) {
 
 // update updates the air-conditioning unit match HomeKit.
 func (m *AirConManager) emit() {
+	var commands []myplace.Command
+
+	defer func() {
+		if len(commands) > 0 {
+			m.commands <- commands
+		}
+	}()
+
+	for i, z := range m.ac.Zones {
+		t := m.thermostats[i].Thermostat
+		target := t.TargetTemperature.GetValue()
+		if z.TargetTemp != target {
+			commands = append(commands, myplace.SetZoneTargetTemp(m.ac.ID, z.ID, target))
+		}
+	}
+
 	power, mode := m.targetMode()
 
 	if power != m.ac.Details.Power {
-		m.commands <- myplace.SetAirConPower(m.ac.ID, power)
+		commands = append(commands, myplace.SetAirConPower(m.ac.ID, power))
 	}
 
 	if power == myplace.AirConPowerOff {
@@ -137,7 +165,7 @@ func (m *AirConManager) emit() {
 	}
 
 	if mode != m.ac.Details.Mode {
-		m.commands <- myplace.SetAirConMode(m.ac.ID, mode)
+		commands = append(commands, myplace.SetAirConMode(m.ac.ID, mode))
 	}
 
 	isCooling := mode == myplace.AirConModeCool
@@ -145,15 +173,15 @@ func (m *AirConManager) emit() {
 
 	modifiedNonConstantZones := false
 	for _, z := range open {
-		if m.ac.Zones[z.Number-1].State != myplace.ZoneStateOpen {
+		if z.State != myplace.ZoneStateOpen {
 			modifiedNonConstantZones = true
-			m.commands <- myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateOpen)
+			commands = append(commands, myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateOpen))
 		}
 	}
 
 	myzone := m.selectMyZone(isCooling, open)
 	if m.ac.Details.MyZoneNumber != myzone.Number {
-		m.commands <- myplace.SetMyZone(m.ac.ID, myzone.Number)
+		commands = append(commands, myplace.SetMyZone(m.ac.ID, myzone.Number))
 	}
 
 	closedConstantZones := false
@@ -169,7 +197,7 @@ func (m *AirConManager) emit() {
 				modifiedNonConstantZones = true
 			}
 
-			m.commands <- myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateClosed)
+			commands = append(commands, myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateClosed))
 		}
 	}
 
@@ -272,10 +300,4 @@ func allowedZoneModes(t *service.Thermostat) (cool, heat bool) {
 	default: // characteristic.TargetHeatingCoolingStateOff:
 		return false, false
 	}
-}
-
-func (m *AirConManager) setTargetTemp(id string, v float64) {
-	log.Printf("%s zone %s target temp = %.0f", m.ac.ID, id, v)
-	m.commands <- myplace.SetZoneTargetTemp(m.ac.ID, id, v)
-	m.emit()
 }

@@ -24,7 +24,7 @@ import (
 // couldn't work out any combination of characteristics that would allow phrases
 // like "Set the fan speed to auto", which would be ideal.
 type FanManager struct {
-	commands  chan<- myplace.Command
+	commands  chan<- []myplace.Command
 	acID      string
 	autoSpeed myplace.FanSpeed
 	prevSpeed myplace.FanSpeed
@@ -35,7 +35,7 @@ type FanManager struct {
 
 // NewFanManager returns a manager for the given air-conditioning unit's fan.
 func NewFanManager(
-	commands chan<- myplace.Command,
+	commands chan<- []myplace.Command,
 	ac *myplace.AirCon,
 ) *FanManager {
 	m := &FanManager{
@@ -106,15 +106,15 @@ func (m *FanManager) setFanActive(v int) {
 
 	switch v {
 	case characteristic.ActiveActive:
-		m.commands <- myplace.SetFanSpeed(m.acID, m.prevSpeed)
+		m.commands <- []myplace.Command{myplace.SetFanSpeed(m.acID, m.prevSpeed)}
 	case characteristic.ActiveInactive:
-		m.commands <- myplace.SetFanSpeed(m.acID, m.autoSpeed)
+		m.commands <- []myplace.Command{myplace.SetFanSpeed(m.acID, m.autoSpeed)}
 	}
 }
 
 func (m *FanManager) setFanSpeed(v float64) {
 	log.Printf("%s manual fan speed = %0.1f%%", m.acID, v)
-	m.commands <- myplace.SetFanSpeed(m.acID, m.unmarshalFanSpeed(v))
+	m.commands <- []myplace.Command{myplace.SetFanSpeed(m.acID, m.unmarshalFanSpeed(v))}
 }
 
 func (m *FanManager) marshalFanSpeed(v myplace.FanSpeed) float64 {
