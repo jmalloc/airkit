@@ -74,11 +74,6 @@ func printAC(cmd *cobra.Command, ac *myplace.AirCon) {
 	cmd.Printf("Firmware: v%d.%d\n", ac.Details.FirmwareMajorVersion, ac.Details.FirmwareMinorVersion)
 	cmd.Println("")
 
-	// MyTempRunning        bool        `json:"climateControlModeIsRunning,omitempty"`
-	// MyAutoRunning        bool        `json:"myAutoModeIsRunning,omitempty"`
-	// MySleepSaverRunning  bool        `json:"quietNightModeIsRunning"`
-	// ConstantZoneNumber   int         `json:"constant1,omitempty"`
-
 	pad := zoneNamePadding(ac)
 	for _, z := range ac.Zones {
 		printZone(cmd, ac, z, pad)
@@ -94,12 +89,18 @@ func printZone(cmd *cobra.Command, ac *myplace.AirCon, z *myplace.Zone, pad int)
 		z.Name,
 	)
 
-	if z.Number == ac.Details.MyZoneNumber {
-		cmd.Print(" (my)")
+	if ac.IsMyZone(z) {
+		cmd.Print(" MY")
 	} else if z.State == myplace.ZoneStateOpen {
-		cmd.Print(" (on)")
+		cmd.Print(" ON")
 	} else {
-		cmd.Print("     ")
+		cmd.Print("   ")
+	}
+
+	if ac.IsConstantZone(z) {
+		cmd.Print(" C")
+	} else {
+		cmd.Print("  ")
 	}
 
 	if z.State == myplace.ZoneStateOpen {

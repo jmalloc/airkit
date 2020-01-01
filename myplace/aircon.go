@@ -116,7 +116,9 @@ type AirCon struct {
 		MySleepSaverEnabled  bool        `json:"quietNightModeEnabled"`
 		MySleepSaverRunning  bool        `json:"quietNightModeIsRunning"`
 		MyZoneNumber         int         `json:"myZone,omitempty"`
-		ConstantZoneNumber   int         `json:"constant1,omitempty"`
+		ConstantZone1Number  int         `json:"constant1,omitempty"`
+		ConstantZone2Number  int         `json:"constant2,omitempty"`
+		ConstantZone3Number  int         `json:"constant3,omitempty"`
 		FirmwareMajorVersion int         `json:"cbFWRevMajor,omitempty"`
 		FirmwareMinorVersion int         `json:"cbFWRevMinor,omitempty"`
 	} `json:"info,omitempty"`
@@ -137,6 +139,42 @@ func (ac *AirCon) populate(id string) {
 // MyZone returns the currently selected "MyZone".
 func (ac *AirCon) MyZone() *Zone {
 	return ac.Zones[ac.Details.MyZoneNumber-1]
+}
+
+// IsMyZone returns true if z is the current MyZone.
+func (ac *AirCon) IsMyZone(z *Zone) bool {
+	return z.Number == ac.Details.MyZoneNumber
+}
+
+// ConstantZones returns the zones that are configured as "constant zones".
+func (ac *AirCon) ConstantZones() []*Zone {
+	var zones []*Zone
+
+	if ac.Details.ConstantZone1Number != 0 {
+		zones = append(zones, ac.Zones[ac.Details.ConstantZone1Number-1])
+	}
+
+	if ac.Details.ConstantZone2Number != 0 {
+		zones = append(zones, ac.Zones[ac.Details.ConstantZone2Number-1])
+	}
+
+	if ac.Details.ConstantZone3Number != 0 {
+		zones = append(zones, ac.Zones[ac.Details.ConstantZone3Number-1])
+	}
+
+	return zones
+}
+
+// IsConstantZone returns true if z is configured as a constant zone.
+func (ac *AirCon) IsConstantZone(z *Zone) bool {
+	switch z.Number {
+	case ac.Details.ConstantZone1Number,
+		ac.Details.ConstantZone2Number,
+		ac.Details.ConstantZone3Number:
+		return true
+	default:
+		return false
+	}
 }
 
 // SetAirConPower returns a command that turns and air-conditioning unit on or
