@@ -21,8 +21,14 @@ type AirConManager struct {
 
 	m                    sync.Mutex
 	ac                   *myplace.AirCon
-	thermostats          []*accessory.Thermostat
+	zoneAccessories      []*zoneAccessories
 	constantZoneAttempts int
+}
+
+type zoneAccessories struct {
+	Accessories []*accessory.A
+	Thermostat  *service.Thermostat
+	Battery     *characteristic.StatusLowBattery
 }
 
 // NewAirConManager returns a manager for the given air-conditioning unit.
@@ -36,9 +42,9 @@ func NewAirConManager(
 	}
 
 	for _, z := range ac.Zones {
-		t := newThermostat(ac, z)
+		a := newZoneAccessories(ac, z)
 
-		t.Thermostat.TargetTemperature.OnValueRemoteUpdate(
+		a.Thermostat.TargetTemperature.OnValueRemoteUpdate(
 			func(v float64) {
 				m.m.Lock()
 				defer m.m.Unlock()
@@ -46,7 +52,7 @@ func NewAirConManager(
 			},
 		)
 
-		t.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(
+		a.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(
 			func(int) {
 				m.m.Lock()
 				defer m.m.Unlock()
@@ -54,7 +60,7 @@ func NewAirConManager(
 			},
 		)
 
-		m.thermostats = append(m.thermostats, t)
+		m.zoneAccessories = append(m.zoneAccessories, a)
 	}
 
 	m.update(ac)
@@ -62,7 +68,7 @@ func NewAirConManager(
 	return m
 }
 
-func newThermostat(ac *myplace.AirCon, z *myplace.Zone) *accessory.Thermostat {
+func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
 	n := fmt.Sprintf("%s %s", z.Name, ac.Details.Name)
 	t := accessory.NewThermostat(
 		accessory.Info{
@@ -87,15 +93,22 @@ func newThermostat(ac *myplace.AirCon, z *myplace.Zone) *accessory.Thermostat {
 	t.Thermostat.CurrentTemperature.SetMaxValue(100)
 	t.Thermostat.CurrentTemperature.SetStepValue(0.1)
 
-	return t
+	b := characteristic.NewStatusLowBattery()
+	t.Thermostat.AddC(b.C)
+
+	return &zoneAccessories{
+		Accessories: []*accessory.A{t.A},
+		Thermostat:  t.Thermostat,
+		Battery:     b,
+	}
 }
 
 // Accessories returns the managed accessories.
 func (m *AirConManager) Accessories() []*accessory.A {
-	accessories := make([]*accessory.A, len(m.thermostats))
+	var accessories []*accessory.A
 
-	for i, t := range m.thermostats {
-		accessories[i] = t.A
+	for _, a := range m.zoneAccessories {
+		accessories = append(accessories, a.Accessories...)
 	}
 
 	return accessories
@@ -116,22 +129,28 @@ func (m *AirConManager) Update(s *myplace.System) {
 // update updates the HomeKit accessories to match the air-conditioning unit.
 func (m *AirConManager) update(ac *myplace.AirCon) {
 	for i, z := range ac.Zones {
-		t := m.thermostats[i].Thermostat
+		a := m.zoneAccessories[i]
 
-		t.CurrentTemperature.SetValue(z.CurrentTemp)
-		t.TargetTemperature.SetValue(z.TargetTemp)
+		a.Thermostat.CurrentTemperature.SetValue(z.CurrentTemp)
+		a.Thermostat.TargetTemperature.SetValue(z.TargetTemp)
 
 		if z.State == myplace.ZoneStateClosed {
-			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
+			a.Thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
 		} else if ac.Details.Power == myplace.AirConPowerOff ||
 			ac.Details.Mode == myplace.AirConModeVent ||
 			ac.Details.Mode == myplace.AirConModeDry {
 			// unsupported modes are reported as "off"
-			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
+			a.Thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateOff)
 		} else if ac.Details.Mode == myplace.AirConModeCool {
-			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateCool)
+			a.Thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateCool)
 		} else if ac.Details.Mode == myplace.AirConModeHeat {
-			t.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateHeat)
+			a.Thermostat.CurrentHeatingCoolingState.SetValue(characteristic.CurrentHeatingCoolingStateHeat)
+		}
+
+		if z.Error == myplace.ZoneErrorNone {
+			a.Battery.SetValue(characteristic.StatusLowBatteryBatteryLevelNormal)
+		} else {
+			a.Battery.SetValue(characteristic.StatusLowBatteryBatteryLevelLow)
 		}
 	}
 }
@@ -147,7 +166,7 @@ func (m *AirConManager) emit() {
 	}()
 
 	for i, z := range m.ac.Zones {
-		t := m.thermostats[i].Thermostat
+		t := m.zoneAccessories[i].Thermostat
 		target := t.TargetTemperature.Value()
 		if z.TargetTemp != target {
 			commands = append(commands, myplace.SetZoneTargetTemp(m.ac.ID, z.ID, target))
@@ -222,19 +241,17 @@ func (m *AirConManager) emit() {
 func (m *AirConManager) targetMode() (myplace.AirConPower, myplace.AirConMode) {
 	var needsHeating bool
 
-	for _, t := range m.thermostats {
-		cool, heat := allowedZoneModes(t.Thermostat)
-		current := t.Thermostat.CurrentTemperature.Value()
-		target := t.Thermostat.TargetTemperature.Value()
+	for _, a := range m.zoneAccessories {
+		cool, heat := allowedZoneModes(a.Thermostat)
+		current := a.Thermostat.CurrentTemperature.Value()
+		target := a.Thermostat.TargetTemperature.Value()
 
 		if cool && current > target {
 			return myplace.AirConPowerOn, myplace.AirConModeCool
 		}
 
 		if heat && current < target {
-			if !needsHeating {
-				needsHeating = true
-			}
+			needsHeating = true
 		}
 	}
 
@@ -249,7 +266,7 @@ func (m *AirConManager) targetMode() (myplace.AirConPower, myplace.AirConMode) {
 // opened, and closed, respectively.
 func (m *AirConManager) partitionZones(isCooling bool) (open, closed []*myplace.Zone) {
 	for i, z := range m.ac.Zones {
-		cool, heat := allowedZoneModes(m.thermostats[i].Thermostat)
+		cool, heat := allowedZoneModes(m.zoneAccessories[i].Thermostat)
 
 		if (isCooling && cool) || (!isCooling && heat) {
 			open = append(open, z)
