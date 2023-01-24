@@ -63,7 +63,7 @@ func init() {
 						cmd.Printf("adding HomeKit accessory for the '%s' air-conditioner\n", ac.Details.Name)
 						managers = append(
 							managers,
-							manager.NewAirConManager(commands, ac),
+							manager.NewAirConManager(st, commands, ac),
 						)
 
 						managers = append(

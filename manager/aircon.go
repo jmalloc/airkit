@@ -2,8 +2,10 @@ package manager
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 
+	"github.com/brutella/hap"
 	"github.com/brutella/hap/accessory"
 	"github.com/brutella/hap/characteristic"
 	"github.com/brutella/hap/service"
@@ -33,6 +35,7 @@ type zoneAccessories struct {
 
 // NewAirConManager returns a manager for the given air-conditioning unit.
 func NewAirConManager(
+	store hap.Store,
 	commands chan<- []myplace.Command,
 	ac *myplace.AirCon,
 ) *AirConManager {
@@ -52,8 +55,17 @@ func NewAirConManager(
 			},
 		)
 
+		key := fmt.Sprintf("myplace-%s-%s-target-state", ac.ID, z.ID)
+		if v, err := store.Get(key); err == nil {
+			if i, err := strconv.Atoi(string(v)); err == nil {
+				a.Thermostat.TargetHeatingCoolingState.SetValue(i)
+			}
+		}
+
 		a.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(
-			func(int) {
+			func(v int) {
+				store.Set(key, []byte(strconv.Itoa(v)))
+
 				m.m.Lock()
 				defer m.m.Unlock()
 				m.emit()
@@ -84,7 +96,6 @@ func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
 		},
 	)
 
-	t.Thermostat.TargetTemperature.SetValue(z.CurrentTemp)
 	t.Thermostat.TargetTemperature.SetMinValue(16)
 	t.Thermostat.TargetTemperature.SetMaxValue(32)
 	t.Thermostat.TargetTemperature.SetStepValue(1)
