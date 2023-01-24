@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
-	"github.com/brutella/hc/service"
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/characteristic"
+	"github.com/brutella/hap/service"
 	"github.com/jmalloc/airkit/myplace"
 )
 
@@ -28,7 +28,7 @@ type FanManager struct {
 	acID      string
 	autoSpeed myplace.FanSpeed
 	prevSpeed myplace.FanSpeed
-	accessory *accessory.Accessory
+	accessory *accessory.A
 	fan       *service.FanV2
 	speed     *characteristic.RotationSpeed
 }
@@ -47,7 +47,7 @@ func NewFanManager(
 				Manufacturer: "Advantage Air & James Harris",
 				Model:        "MyAir Air Conditioner Fan Speed Override",
 				SerialNumber: ac.ID,
-				FirmwareRevision: fmt.Sprintf(
+				Firmware: fmt.Sprintf(
 					"%d.%d",
 					ac.Details.FirmwareMajorVersion,
 					ac.Details.FirmwareMinorVersion,
@@ -60,10 +60,10 @@ func NewFanManager(
 		prevSpeed: myplace.FanSpeedMedium,
 	}
 
-	m.accessory.AddService(m.fan.Service)
+	m.accessory.AddS(m.fan.S)
 	m.fan.Active.OnValueRemoteUpdate(m.setFanActive)
 
-	m.fan.AddCharacteristic(m.speed.Characteristic)
+	m.fan.AddC(m.speed.C)
 	m.speed.OnValueRemoteUpdate(m.setFanSpeed)
 
 	m.update(ac)
@@ -72,8 +72,8 @@ func NewFanManager(
 }
 
 // Accessories returns the managed accessories.
-func (m *FanManager) Accessories() []*accessory.Accessory {
-	return []*accessory.Accessory{
+func (m *FanManager) Accessories() []*accessory.A {
+	return []*accessory.A{
 		m.accessory,
 	}
 }

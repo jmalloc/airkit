@@ -4,10 +4,13 @@ import (
 	"context"
 	"math/rand"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/dogmatiq/ferrite"
+	"github.com/dogmatiq/imbue"
 	"github.com/spf13/cobra"
-	"go.uber.org/dig"
 )
 
 var root = &cobra.Command{
@@ -15,51 +18,26 @@ var root = &cobra.Command{
 	Short: "Integrate MyPlace air-conditioners with Apple HomeKit.",
 }
 
-var container = dig.New()
+var container = imbue.New()
+
+// version is the current version of the CLI. It is set automatically set during
+// build process.
+var version = "0.0.0"
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	ferrite.Init()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
 	defer cancel()
 
-	// c := make(chan os.Signal)
-	// signal.Notify(c, os.Interrupt)
-	// signal.Notify(c, os.Kill)
-	// signal.Notify(c, syscall.SIGTERM)
+	root.Version = version
 
-	// go func() {
-	// 	select {
-	// 	case <-ctx.Done():
-	// 	case <-c:
-	// 		cancel()
-	// 	}
-	// }()
-
-	root.PersistentPreRunE = func(*cobra.Command, []string) error {
-		return container.Provide(func() context.Context {
-			return ctx
-		})
-	}
-
-	if err := root.Execute(); err != nil {
+	if err := root.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
-	}
-}
-
-// runE wraps a command run function, causing its arguments to be provided by
-// the DI container.
-func runE(fn interface{}) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		prov := func() (*cobra.Command, []string) {
-			return cmd, args
-		}
-
-		if err := container.Provide(prov); err != nil {
-			return err
-		}
-
-		err := container.Invoke(fn)
-		return dig.RootCause(err)
 	}
 }

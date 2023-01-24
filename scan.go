@@ -18,7 +18,7 @@ func main() {
 		g.Add(1)
 		go func() {
 			defer g.Done()
-			addr := fmt.Sprintf("192.168.88.%d:2025", i)
+			addr := fmt.Sprintf("10.0.100.%d:2025", i)
 			conn, err := net.DialTimeout("tcp", addr, 1*time.Second)
 
 			m.Lock()

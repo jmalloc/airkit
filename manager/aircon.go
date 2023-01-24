@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
-	"github.com/brutella/hc/service"
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/characteristic"
+	"github.com/brutella/hap/service"
 	"github.com/jmalloc/airkit/myplace"
 )
 
@@ -63,26 +63,26 @@ func NewAirConManager(
 }
 
 func newThermostat(ac *myplace.AirCon, z *myplace.Zone) *accessory.Thermostat {
-	n := fmt.Sprintf("%s - %s", ac.Details.Name, z.Name)
+	n := fmt.Sprintf("%s %s", z.Name, ac.Details.Name)
 	t := accessory.NewThermostat(
 		accessory.Info{
 			Name:         n,
 			Manufacturer: "Advantage Air & James Harris",
 			Model:        "MyAir Zone",
 			SerialNumber: n,
-			FirmwareRevision: fmt.Sprintf(
+			Firmware: fmt.Sprintf(
 				"%d.%d",
 				ac.Details.FirmwareMajorVersion,
 				ac.Details.FirmwareMinorVersion,
 			),
 		},
-		z.CurrentTemp,
-		16,
-		32,
-		1,
 	)
 
-	// set the current temperature range separately.
+	t.Thermostat.TargetTemperature.SetValue(z.CurrentTemp)
+	t.Thermostat.TargetTemperature.SetMinValue(16)
+	t.Thermostat.TargetTemperature.SetMaxValue(32)
+	t.Thermostat.TargetTemperature.SetStepValue(1)
+
 	t.Thermostat.CurrentTemperature.SetMinValue(0)
 	t.Thermostat.CurrentTemperature.SetMaxValue(100)
 	t.Thermostat.CurrentTemperature.SetStepValue(0.1)
@@ -91,11 +91,11 @@ func newThermostat(ac *myplace.AirCon, z *myplace.Zone) *accessory.Thermostat {
 }
 
 // Accessories returns the managed accessories.
-func (m *AirConManager) Accessories() []*accessory.Accessory {
-	accessories := make([]*accessory.Accessory, len(m.thermostats))
+func (m *AirConManager) Accessories() []*accessory.A {
+	accessories := make([]*accessory.A, len(m.thermostats))
 
 	for i, t := range m.thermostats {
-		accessories[i] = t.Accessory
+		accessories[i] = t.A
 	}
 
 	return accessories
@@ -148,7 +148,7 @@ func (m *AirConManager) emit() {
 
 	for i, z := range m.ac.Zones {
 		t := m.thermostats[i].Thermostat
-		target := t.TargetTemperature.GetValue()
+		target := t.TargetTemperature.Value()
 		if z.TargetTemp != target {
 			commands = append(commands, myplace.SetZoneTargetTemp(m.ac.ID, z.ID, target))
 		}
@@ -224,8 +224,8 @@ func (m *AirConManager) targetMode() (myplace.AirConPower, myplace.AirConMode) {
 
 	for _, t := range m.thermostats {
 		cool, heat := allowedZoneModes(t.Thermostat)
-		current := t.Thermostat.CurrentTemperature.GetValue()
-		target := t.Thermostat.TargetTemperature.GetValue()
+		current := t.Thermostat.CurrentTemperature.Value()
+		target := t.Thermostat.TargetTemperature.Value()
 
 		if cool && current > target {
 			return myplace.AirConPowerOn, myplace.AirConModeCool
@@ -269,8 +269,8 @@ func (m *AirConManager) selectMyZone(isCooling bool, zones []*myplace.Zone) *myp
 	for _, z := range zones {
 		t := m.thermostats[z.Number-1].Thermostat
 
-		current := t.CurrentTemperature.GetValue()
-		target := t.TargetTemperature.GetValue()
+		current := t.CurrentTemperature.Value()
+		target := t.TargetTemperature.Value()
 		delta := current - target
 
 		// if we're not cooling, favour the lowest delta (ie, current < target)
@@ -290,7 +290,7 @@ func (m *AirConManager) selectMyZone(isCooling bool, zones []*myplace.Zone) *myp
 // allowedZoneModes returns booleans indicating whether a thermostat allows a
 // zone to be heated and/or cooled.
 func allowedZoneModes(t *service.Thermostat) (cool, heat bool) {
-	switch t.TargetHeatingCoolingState.GetValue() {
+	switch t.TargetHeatingCoolingState.Value() {
 	case characteristic.TargetHeatingCoolingStateCool:
 		return true, false
 	case characteristic.TargetHeatingCoolingStateHeat:

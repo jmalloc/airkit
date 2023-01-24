@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/dogmatiq/imbue"
 	"github.com/jmalloc/airkit/myplace"
 	"github.com/spf13/cobra"
 )
@@ -15,22 +16,32 @@ func init() {
 	root.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "Print the status of air-conditioning units.",
-		RunE: runE(func(
-			ctx context.Context,
+		RunE: func(
 			cmd *cobra.Command,
-			cli *myplace.Client,
+			args []string,
 		) error {
-			sys, err := cli.Read(ctx)
-			if err != nil {
-				return err
-			}
+			cmd.SilenceUsage = true
 
-			for _, ac := range sys.AirCons {
-				printAC(cmd, ac)
-			}
+			return imbue.Invoke1(
+				cmd.Context(),
+				container,
+				func(
+					ctx context.Context,
+					cli *myplace.Client,
+				) error {
+					sys, err := cli.Read(ctx)
+					if err != nil {
+						return err
+					}
 
-			return nil
-		}),
+					for _, ac := range sys.AirCons {
+						printAC(cmd, ac)
+					}
+
+					return nil
+				},
+			)
+		},
 	})
 }
 
