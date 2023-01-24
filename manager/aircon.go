@@ -198,9 +198,10 @@ func (m *AirConManager) emit() {
 		}
 	}
 
-	myzone := m.selectMyZone(isCooling, open)
-	if m.ac.Details.MyZoneNumber != myzone.Number {
-		commands = append(commands, myplace.SetMyZone(m.ac.ID, myzone.Number))
+	if myzone, ok := m.selectMyZone(isCooling, open); ok {
+		if m.ac.Details.MyZoneNumber != myzone.Number {
+			commands = append(commands, myplace.SetMyZone(m.ac.ID, myzone.Number))
+		}
 	}
 
 	closedConstantZones := false
@@ -279,12 +280,24 @@ func (m *AirConManager) partitionZones(isCooling bool) (open, closed []*myplace.
 }
 
 // selectMyZone returns the best zone to use as the MyZone.
-func (m *AirConManager) selectMyZone(isCooling bool, zones []*myplace.Zone) *myplace.Zone {
+func (m *AirConManager) selectMyZone(isCooling bool, zones []*myplace.Zone) (*myplace.Zone, bool) {
 	var my *myplace.Zone
 	var max float64
 
 	for _, z := range zones {
-		t := m.thermostats[z.Number-1].Thermostat
+		// Don't consider the zone a candidate for MyZone if we don't even want
+		// it on.
+		if z.State != myplace.ZoneStateOpen {
+			continue
+		}
+
+		// Don't consider the zone a candidate for MyZone if we can't measure
+		// the temperature.
+		if z.Error == myplace.ZoneErrorNoSignal {
+			continue
+		}
+
+		t := m.zoneAccessories[z.Number-1].Thermostat
 
 		current := t.CurrentTemperature.Value()
 		target := t.TargetTemperature.Value()
@@ -301,7 +314,7 @@ func (m *AirConManager) selectMyZone(isCooling bool, zones []*myplace.Zone) *myp
 		}
 	}
 
-	return my
+	return my, my != nil
 }
 
 // allowedZoneModes returns booleans indicating whether a thermostat allows a
