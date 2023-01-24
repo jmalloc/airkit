@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -78,7 +78,7 @@ func (c *Client) Write(ctx context.Context, commands ...Command) error {
 		return err
 	}
 
-	fmt.Println(string(buf))
+	log.Print(string(buf))
 
 	res, err := c.get(
 		ctx,
