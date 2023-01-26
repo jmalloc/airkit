@@ -51,7 +51,7 @@ func NewAirConManager(
 			func(v float64) {
 				m.m.Lock()
 				defer m.m.Unlock()
-				m.emit()
+				m.apply()
 			},
 		)
 
@@ -68,7 +68,7 @@ func NewAirConManager(
 
 				m.m.Lock()
 				defer m.m.Unlock()
-				m.emit()
+				m.apply()
 			},
 		)
 
@@ -134,7 +134,7 @@ func (m *AirConManager) Update(s *myplace.System) {
 	m.update(ac)
 	m.ac = ac
 
-	m.emit()
+	m.apply()
 }
 
 // update updates the HomeKit accessories to match the air-conditioning unit.
@@ -166,8 +166,8 @@ func (m *AirConManager) update(ac *myplace.AirCon) {
 	}
 }
 
-// update updates the air-conditioning unit match HomeKit.
-func (m *AirConManager) emit() {
+// apply updates the air-conditioning unit to match HomeKit.
+func (m *AirConManager) apply() {
 	var commands []myplace.Command
 
 	defer func() {
@@ -253,16 +253,27 @@ func (m *AirConManager) emit() {
 func (m *AirConManager) targetMode() (myplace.AirConPower, myplace.AirConMode) {
 	var needsHeating bool
 
+	// Cool until we're a little below the target temperature. This is an
+	// attempt to let the AC regulate the temperature. That is, we only switch
+	// the unit off if the AC is over-cooling.
+	const coolThreshold = -0.1
+
+	// Don't start heating until we're below the target temperature. This is an
+	// attempt avoid continually switching between heating and cooling when zones
+	// are set to AUTO. In general, we favour cooling over heating.
+	const heatThreshold = -0.5
+
 	for _, a := range m.zoneAccessories {
 		cool, heat := allowedZoneModes(a.Thermostat)
 		current := a.Thermostat.CurrentTemperature.Value()
 		target := a.Thermostat.TargetTemperature.Value()
+		delta := current - target
 
-		if cool && current > target {
+		if cool && delta > coolThreshold {
 			return myplace.AirConPowerOn, myplace.AirConModeCool
 		}
 
-		if heat && current < target {
+		if heat && delta < heatThreshold {
 			needsHeating = true
 		}
 	}
