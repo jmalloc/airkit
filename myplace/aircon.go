@@ -1,5 +1,7 @@
 package myplace
 
+import "fmt"
+
 // AirConPower is an enumeration of the states of an air-conditioning unit.
 type AirConPower string
 
@@ -180,42 +182,51 @@ func (ac *AirCon) IsConstantZone(z *Zone) bool {
 // SetAirConPower returns a command that turns and air-conditioning unit on or
 // off.
 func SetAirConPower(id string, v AirConPower) Command {
-	return func(req map[string]*AirCon) {
-		ac, ok := req[id]
+	return Command{
+		desc: fmt.Sprintf("power %s", v),
+		apply: func(req map[string]*AirCon) {
+			ac, ok := req[id]
 
-		if !ok {
-			ac = &AirCon{}
-			req[id] = ac
-		}
+			if !ok {
+				ac = &AirCon{}
+				req[id] = ac
+			}
 
-		ac.Details.Power = v
+			ac.Details.Power = v
+		},
 	}
 }
 
 // SetAirConMode returns a command that sets the mode of an air-conditioning unit.
 func SetAirConMode(id string, v AirConMode) Command {
-	return func(req map[string]*AirCon) {
-		ac, ok := req[id]
+	return Command{
+		desc: fmt.Sprintf("set mode to %s", v),
+		apply: func(req map[string]*AirCon) {
+			ac, ok := req[id]
 
-		if !ok {
-			ac = &AirCon{}
-			req[id] = ac
-		}
+			if !ok {
+				ac = &AirCon{}
+				req[id] = ac
+			}
 
-		ac.Details.Mode = v
+			ac.Details.Mode = v
+		},
 	}
 }
 
 // SetFanSpeed returns a command that sets the fan mode of an air-conditioning unit.
 func SetFanSpeed(id string, v FanSpeed) Command {
-	return func(req map[string]*AirCon) {
-		ac, ok := req[id]
+	return Command{
+		desc: fmt.Sprintf("set %s fan speed to %s", id, v),
+		apply: func(req map[string]*AirCon) {
+			ac, ok := req[id]
 
-		if !ok {
-			ac = &AirCon{}
-			req[id] = ac
-		}
+			if !ok {
+				ac = &AirCon{}
+				req[id] = ac
+			}
 
-		ac.Details.FanSpeed = v
+			ac.Details.FanSpeed = v
+		},
 	}
 }

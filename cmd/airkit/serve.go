@@ -60,7 +60,7 @@ func init() {
 					var managers []manager.AccessoryManager
 
 					for _, ac := range sys.AirCons {
-						cmd.Printf("adding HomeKit accessory for the '%s' air-conditioner\n", ac.Details.Name)
+						log.Printf("adding HomeKit accessory for the '%s' air-conditioner\n", ac.Details.Name)
 						managers = append(
 							managers,
 							manager.NewAirConManager(st, commands, ac),
@@ -90,6 +90,10 @@ func init() {
 								return
 
 							case cmds := <-commands:
+								for _, cmd := range cmds {
+									log.Print(cmd)
+								}
+
 								err := cli.Write(ctx, cmds...)
 								if err != nil {
 									log.Print(err)
@@ -110,7 +114,7 @@ func init() {
 						}
 					}()
 
-					cmd.Printf("starting HomeKit accessory server, PIN is %s\n", srv.Pin)
+					log.Printf("starting HomeKit accessory server, PIN is %s", srv.Pin)
 
 					err = srv.ListenAndServe(ctx)
 					if ctx.Err() != nil {

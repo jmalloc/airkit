@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"sync"
 
@@ -180,7 +181,7 @@ func (m *AirConManager) apply() {
 		t := m.zoneAccessories[i].Thermostat
 		target := t.TargetTemperature.Value()
 		if z.TargetTemp != target {
-			commands = append(commands, myplace.SetZoneTargetTemp(m.ac.ID, z.ID, target))
+			commands = append(commands, myplace.SetZoneTargetTemp(m.ac.ID, z, target))
 		}
 	}
 
@@ -205,13 +206,13 @@ func (m *AirConManager) apply() {
 	for _, z := range open {
 		if z.State != myplace.ZoneStateOpen {
 			modifiedNonConstantZones = true
-			commands = append(commands, myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateOpen))
+			commands = append(commands, myplace.SetZoneState(m.ac.ID, z, myplace.ZoneStateOpen))
 		}
 	}
 
-	if myzone, ok := m.selectMyZone(isCooling, open); ok {
-		if m.ac.Details.MyZoneNumber != myzone.Number {
-			commands = append(commands, myplace.SetMyZone(m.ac.ID, myzone.Number))
+	if z, ok := m.selectMyZone(isCooling, open); ok {
+		if m.ac.Details.MyZoneNumber != z.Number {
+			commands = append(commands, myplace.SetMyZone(m.ac.ID, z))
 		}
 	}
 
@@ -228,19 +229,19 @@ func (m *AirConManager) apply() {
 				modifiedNonConstantZones = true
 			}
 
-			commands = append(commands, myplace.SetZoneState(m.ac.ID, z.ID, myplace.ZoneStateClosed))
+			commands = append(commands, myplace.SetZoneState(m.ac.ID, z, myplace.ZoneStateClosed))
 		}
 	}
 
 	if modifiedNonConstantZones {
 		if m.constantZoneAttempts > constantZoneAttempts {
-			fmt.Println("enabling closing of constant zones")
+			log.Print("enabling closing of constant zones")
 		}
 		m.constantZoneAttempts = 0
 	} else if closedConstantZones {
 		m.constantZoneAttempts++
 		if m.constantZoneAttempts == constantZoneAttempts+1 {
-			fmt.Println("disabling closing of constant zones")
+			log.Print("disabling closing of constant zones")
 		}
 	}
 }

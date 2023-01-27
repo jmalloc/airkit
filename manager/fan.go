@@ -2,7 +2,6 @@ package manager
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/brutella/hap/accessory"
 	"github.com/brutella/hap/characteristic"
@@ -102,8 +101,6 @@ func (m *FanManager) update(ac *myplace.AirCon) {
 }
 
 func (m *FanManager) setFanActive(v int) {
-	log.Printf("%s manual fan override = %v", m.acID, v)
-
 	switch v {
 	case characteristic.ActiveActive:
 		m.commands <- []myplace.Command{myplace.SetFanSpeed(m.acID, m.prevSpeed)}
@@ -113,7 +110,6 @@ func (m *FanManager) setFanActive(v int) {
 }
 
 func (m *FanManager) setFanSpeed(v float64) {
-	log.Printf("%s manual fan speed = %0.1f%%", m.acID, v)
 	m.commands <- []myplace.Command{myplace.SetFanSpeed(m.acID, m.unmarshalFanSpeed(v))}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,7 +14,14 @@ import (
 const DefaultPort = "2025"
 
 // A Command is a request to change the state of the system in some way.
-type Command func(map[string]*AirCon)
+type Command struct {
+	desc  string
+	apply func(map[string]*AirCon)
+}
+
+func (c Command) String() string {
+	return c.desc
+}
 
 // Client is a client for the MyPlace API.
 type Client struct {
@@ -70,15 +76,13 @@ func (c *Client) Read(ctx context.Context) (*System, error) {
 func (c *Client) Write(ctx context.Context, commands ...Command) error {
 	req := map[string]*AirCon{}
 	for _, c := range commands {
-		c(req)
+		c.apply(req)
 	}
 
 	buf, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
-
-	log.Print(string(buf))
 
 	res, err := c.get(
 		ctx,
