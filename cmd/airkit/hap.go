@@ -11,7 +11,9 @@ func init() {
 		func(
 			ctx imbue.Context,
 		) (hap.Store, error) {
-			return hap.NewFsStore("artifacts/db"), nil
+			return hap.NewFsStore(
+				dbPath.Value(),
+			), nil
 		},
 	)
 }

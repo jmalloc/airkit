@@ -22,7 +22,7 @@ var (
 		Required()
 
 	dbPath = ferrite.
-		File(
+		String(
 			"AIRKIT_DB_PATH",
 			"the path where AirKit stores its data",
 		).

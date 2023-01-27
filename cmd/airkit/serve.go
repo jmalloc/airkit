@@ -141,14 +141,14 @@ func readInitialState(
 	cli *myplace.Client,
 ) (*myplace.System, error) {
 	for {
-		cmd.Println("reading MyPlace system information")
+		log.Print("reading MyPlace system information")
 
 		sys, err := cli.Read(ctx)
 		if err == nil || err == context.Canceled {
 			return sys, err
 		}
 
-		cmd.PrintErr(err)
+		log.Print(err)
 
 		select {
 		case <-ctx.Done():
