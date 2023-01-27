@@ -67,7 +67,7 @@ func (z *Zone) populate(id string) {
 }
 
 func (z *Zone) String() string {
-	return fmt.Sprintf("%s (%d)", z.Name, z.Number)
+	return fmt.Sprintf("[%d] %s", z.Number, z.Name)
 }
 
 // SetMyZone returns a command that sets "MyZone" of an air-conditioning unit.
@@ -90,7 +90,7 @@ func SetMyZone(id string, z *Zone) Command {
 // SetZoneState returns a command that sets state of a zone.
 func SetZoneState(id string, z *Zone, v ZoneState) Command {
 	return Command{
-		desc: fmt.Sprintf("%s %s", v, z),
+		desc: fmt.Sprintf("turn %s %s", z, v),
 		apply: func(req map[string]*AirCon) {
 			ac, ok := req[id]
 
