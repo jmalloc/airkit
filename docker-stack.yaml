@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  airkit:
+    image: ghcr.io/jmalloc/airkit:latest
+    network_mode: host
+    environment:
+      AIRKIT_API_HOST: "10.0.100.245"
+      AIRKIT_DB_PATH: /var/airkit
+    volumes:
+      - db-data:/var/airkit
+
+volumes:
+  homekit-store:
