@@ -81,7 +81,17 @@ func NewAirConManager(
 	return m
 }
 
+const (
+	thermostatID = 1
+)
+
+func makeAccessoryID(ac *myplace.AirCon, z *myplace.Zone, id uint32) uint64 {
+	idMask := uint64(ac.Number)<<56 | uint64(z.Number)<<48
+	return idMask | uint64(id)
+}
+
 func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
+
 	n := fmt.Sprintf("%s %s", z.Name, ac.Details.Name)
 	t := accessory.NewThermostat(
 		accessory.Info{
@@ -96,6 +106,7 @@ func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
 			),
 		},
 	)
+	t.Id = makeAccessoryID(ac, z, thermostatID)
 
 	t.Thermostat.TargetTemperature.SetMinValue(16)
 	t.Thermostat.TargetTemperature.SetMaxValue(32)
