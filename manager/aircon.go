@@ -188,9 +188,9 @@ func (m *AirConManager) update(ac *myplace.AirCon) {
 		}
 
 		if z.Number == ac.Details.MyZoneNumber {
-			a.MyZoneIndicator.ContactSensorState.SetValue(characteristic.ContactSensorStateContactDetected)
-		} else {
 			a.MyZoneIndicator.ContactSensorState.SetValue(characteristic.ContactSensorStateContactNotDetected)
+		} else {
+			a.MyZoneIndicator.ContactSensorState.SetValue(characteristic.ContactSensorStateContactDetected)
 		}
 	}
 }
