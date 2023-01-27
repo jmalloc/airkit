@@ -89,7 +89,7 @@ func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
 			Name:         n,
 			Manufacturer: "Advantage Air & James Harris",
 			Model:        "MyAir Zone",
-			SerialNumber: n,
+			SerialNumber: fmt.Sprintf("%s.%s", ac.ID, z.ID),
 			Firmware: fmt.Sprintf(
 				"%d.%d",
 				ac.Details.FirmwareMajorVersion,
@@ -112,10 +112,10 @@ func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
 
 	m := accessory.New(
 		accessory.Info{
-			Name:         n + " MyZone Indicator",
+			Name:         fmt.Sprintf("%s MyZone", z.Name),
 			Manufacturer: "Advantage Air & James Harris",
 			Model:        "MyAir Zone",
-			SerialNumber: n,
+			SerialNumber: fmt.Sprintf("%s.%s", ac.ID, z.ID),
 			Firmware: fmt.Sprintf(
 				"%d.%d",
 				ac.Details.FirmwareMajorVersion,
