@@ -29,9 +29,10 @@ type AirConManager struct {
 }
 
 type zoneAccessories struct {
-	Accessories []*accessory.A
-	Thermostat  *service.Thermostat
-	Battery     *characteristic.StatusLowBattery
+	Accessories     []*accessory.A
+	Thermostat      *service.Thermostat
+	Battery         *characteristic.StatusLowBattery
+	MyZoneIndicator *service.ContactSensor
 }
 
 // NewAirConManager returns a manager for the given air-conditioning unit.
@@ -109,10 +110,30 @@ func newZoneAccessories(ac *myplace.AirCon, z *myplace.Zone) *zoneAccessories {
 	b := characteristic.NewStatusLowBattery()
 	t.Thermostat.AddC(b.C)
 
+	m := accessory.New(
+		accessory.Info{
+			Name:         n + " MyZone Indicator",
+			Manufacturer: "Advantage Air & James Harris",
+			Model:        "MyAir Zone",
+			SerialNumber: n,
+			Firmware: fmt.Sprintf(
+				"%d.%d",
+				ac.Details.FirmwareMajorVersion,
+				ac.Details.FirmwareMinorVersion,
+			),
+		},
+		accessory.TypeSensor,
+	)
+	m.Id = makeZoneAccessoryID(ac, z, zoneMyZoneIndicatorID)
+
+	cs := service.NewContactSensor()
+	m.AddS(cs.S)
+
 	return &zoneAccessories{
-		Accessories: []*accessory.A{t.A},
-		Thermostat:  t.Thermostat,
-		Battery:     b,
+		Accessories:     []*accessory.A{t.A, m},
+		Thermostat:      t.Thermostat,
+		Battery:         b,
+		MyZoneIndicator: cs,
 	}
 }
 
@@ -164,6 +185,12 @@ func (m *AirConManager) update(ac *myplace.AirCon) {
 			a.Battery.SetValue(characteristic.StatusLowBatteryBatteryLevelNormal)
 		} else {
 			a.Battery.SetValue(characteristic.StatusLowBatteryBatteryLevelLow)
+		}
+
+		if z.Number == ac.Details.MyZoneNumber {
+			a.MyZoneIndicator.ContactSensorState.SetValue(characteristic.ContactSensorStateContactDetected)
+		} else {
+			a.MyZoneIndicator.ContactSensorState.SetValue(characteristic.ContactSensorStateContactNotDetected)
 		}
 	}
 }

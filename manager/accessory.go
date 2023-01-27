@@ -7,7 +7,8 @@ const (
 )
 
 const (
-	zoneThermostatID = 1
+	zoneThermostatID      = 1
+	zoneMyZoneIndicatorID = 2
 )
 
 func makeAirConAccessoryID(ac *myplace.AirCon, id uint32) uint64 {
