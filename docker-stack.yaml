@@ -6,9 +6,6 @@ services:
     network_mode: host
     environment:
       AIRKIT_API_HOST: "10.0.100.245"
-      AIRKIT_DB_PATH: /var/airkit
+      AIRKIT_DB_PATH: /var/db
     volumes:
-      - airkit:/var/airkit
-
-volumes:
-  airkit:
+      - ./data:/var/db
