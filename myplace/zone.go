@@ -52,7 +52,7 @@ func (e ZoneError) String() string {
 // unit.
 type Zone struct {
 	ID               string    `json:"-"`
-	Number           int       `json:"number,omitempty"`
+	Number           uint8     `json:"number,omitempty"`
 	Name             string    `json:"name,omitempty"`
 	State            ZoneState `json:"state,omitempty"`
 	DamperPercentage int       `json:"value,omitempty"` // 5 - 1000

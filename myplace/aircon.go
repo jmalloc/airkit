@@ -107,7 +107,7 @@ func (s FanSpeed) String() string {
 // AirCon is a ducted air-conditioning unit.
 type AirCon struct {
 	ID      string `json:"-"`
-	Number  int    `json:"-"`
+	Number  uint8  `json:"-"`
 	Details struct {
 		Name                 string      `json:"name,omitempty"`
 		FanSpeed             FanSpeed    `json:"fan,omitempty"`
@@ -122,10 +122,10 @@ type AirCon struct {
 		MyAutoMode           AirConMode  `json:"myAutoModeCurrentSetMode,omitempty"`
 		MySleepSaverEnabled  bool        `json:"quietNightModeEnabled,omitempty"`
 		MySleepSaverRunning  bool        `json:"quietNightModeIsRunning,omitempty"`
-		MyZoneNumber         int         `json:"myZone,omitempty"`
-		ConstantZone1Number  int         `json:"constant1,omitempty"`
-		ConstantZone2Number  int         `json:"constant2,omitempty"`
-		ConstantZone3Number  int         `json:"constant3,omitempty"`
+		MyZoneNumber         uint8       `json:"myZone,omitempty"`
+		ConstantZone1Number  uint8       `json:"constant1,omitempty"`
+		ConstantZone2Number  uint8       `json:"constant2,omitempty"`
+		ConstantZone3Number  uint8       `json:"constant3,omitempty"`
 		FirmwareMajorVersion int         `json:"cbFWRevMajor,omitempty"`
 		FirmwareMinorVersion int         `json:"cbFWRevMinor,omitempty"`
 	} `json:"info,omitempty"`
@@ -134,13 +134,13 @@ type AirCon struct {
 }
 
 func (ac *AirCon) populate(id string) {
-	n, err := strconv.Atoi(strings.TrimPrefix(id, "ac"))
+	n, err := strconv.ParseUint(strings.TrimPrefix(id, "ac"), 10, 8)
 	if err != nil {
 		panic(err)
 	}
 
 	ac.ID = id
-	ac.Number = n
+	ac.Number = uint8(n)
 	ac.Zones = make([]*Zone, len(ac.ZoneByID))
 
 	for id, z := range ac.ZoneByID {
