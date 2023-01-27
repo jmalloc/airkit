@@ -58,6 +58,7 @@ func NewFanManager(
 		speed:     characteristic.NewRotationSpeed(),
 		prevSpeed: myplace.FanSpeedMedium,
 	}
+	m.accessory.Id = makeAirConAccessoryID(ac, acFanSpeedOverrideID)
 
 	m.accessory.AddS(m.fan.S)
 	m.fan.Active.OnValueRemoteUpdate(m.setFanActive)
