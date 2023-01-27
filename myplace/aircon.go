@@ -183,7 +183,7 @@ func (ac *AirCon) IsConstantZone(z *Zone) bool {
 // off.
 func SetAirConPower(id string, v AirConPower) Command {
 	return Command{
-		desc: fmt.Sprintf("power %s", v),
+		desc: fmt.Sprintf("power %s %s", id, v),
 		apply: func(req map[string]*AirCon) {
 			ac, ok := req[id]
 
@@ -200,7 +200,7 @@ func SetAirConPower(id string, v AirConPower) Command {
 // SetAirConMode returns a command that sets the mode of an air-conditioning unit.
 func SetAirConMode(id string, v AirConMode) Command {
 	return Command{
-		desc: fmt.Sprintf("set mode to %s", v),
+		desc: fmt.Sprintf("set %s mode to %s", id, v),
 		apply: func(req map[string]*AirCon) {
 			ac, ok := req[id]
 

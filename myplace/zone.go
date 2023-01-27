@@ -66,14 +66,10 @@ func (z *Zone) populate(id string) {
 	z.ID = id
 }
 
-func (z *Zone) String() string {
-	return fmt.Sprintf("[%d] %s", z.Number, z.Name)
-}
-
 // SetMyZone returns a command that sets "MyZone" of an air-conditioning unit.
-func SetMyZone(id string, z *Zone) Command {
+func SetMyZone(id string, zone *Zone) Command {
 	return Command{
-		desc: fmt.Sprintf("make %s the MyZone", z),
+		desc: fmt.Sprintf("set the %s MyZone to #%d (%s)", id, zone.Number, zone.Name),
 		apply: func(req map[string]*AirCon) {
 			ac, ok := req[id]
 
@@ -82,15 +78,15 @@ func SetMyZone(id string, z *Zone) Command {
 				req[id] = ac
 			}
 
-			ac.Details.MyZoneNumber = z.Number
+			ac.Details.MyZoneNumber = zone.Number
 		},
 	}
 }
 
 // SetZoneState returns a command that sets state of a zone.
-func SetZoneState(id string, z *Zone, v ZoneState) Command {
+func SetZoneState(id string, zone *Zone, v ZoneState) Command {
 	return Command{
-		desc: fmt.Sprintf("turn %s %s", z, v),
+		desc: fmt.Sprintf("set %s#%d (%s) to %s", id, zone.Number, zone.Name, v),
 		apply: func(req map[string]*AirCon) {
 			ac, ok := req[id]
 
@@ -99,7 +95,7 @@ func SetZoneState(id string, z *Zone, v ZoneState) Command {
 				req[id] = ac
 			}
 
-			z, ok := ac.ZoneByID[z.ID]
+			z, ok := ac.ZoneByID[zone.ID]
 
 			if !ok {
 				z = &Zone{}
@@ -108,7 +104,7 @@ func SetZoneState(id string, z *Zone, v ZoneState) Command {
 					ac.ZoneByID = map[string]*Zone{}
 				}
 
-				ac.ZoneByID[z.ID] = z
+				ac.ZoneByID[zone.ID] = z
 			}
 
 			z.State = v
@@ -118,9 +114,9 @@ func SetZoneState(id string, z *Zone, v ZoneState) Command {
 
 // SetZoneTargetTemp returns a command that sets the fan mode of an
 // air-conditioning unit.
-func SetZoneTargetTemp(id string, z *Zone, v float64) Command {
+func SetZoneTargetTemp(id string, zone *Zone, v float64) Command {
 	return Command{
-		desc: fmt.Sprintf("target %.1f°C in %s", v, z),
+		desc: fmt.Sprintf("set %s#%d (%s) target temperature to %.1f°C", id, zone.Number, zone.Name, v),
 		apply: func(req map[string]*AirCon) {
 			ac, ok := req[id]
 
@@ -129,7 +125,7 @@ func SetZoneTargetTemp(id string, z *Zone, v float64) Command {
 				req[id] = ac
 			}
 
-			z, ok := ac.ZoneByID[z.ID]
+			z, ok := ac.ZoneByID[zone.ID]
 
 			if !ok {
 				z = &Zone{}
@@ -138,7 +134,7 @@ func SetZoneTargetTemp(id string, z *Zone, v float64) Command {
 					ac.ZoneByID = map[string]*Zone{}
 				}
 
-				ac.ZoneByID[z.ID] = z
+				ac.ZoneByID[zone.ID] = z
 			}
 
 			z.TargetTemp = v
