@@ -1,6 +1,10 @@
 package myplace
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // AirConPower is an enumeration of the states of an air-conditioning unit.
 type AirConPower string
@@ -103,6 +107,7 @@ func (s FanSpeed) String() string {
 // AirCon is a ducted air-conditioning unit.
 type AirCon struct {
 	ID      string `json:"-"`
+	Number  int    `json:"-"`
 	Details struct {
 		Name                 string      `json:"name,omitempty"`
 		FanSpeed             FanSpeed    `json:"fan,omitempty"`
@@ -129,7 +134,13 @@ type AirCon struct {
 }
 
 func (ac *AirCon) populate(id string) {
+	n, err := strconv.Atoi(strings.TrimPrefix(id, "ac"))
+	if err != nil {
+		panic(err)
+	}
+
 	ac.ID = id
+	ac.Number = n
 	ac.Zones = make([]*Zone, len(ac.ZoneByID))
 
 	for id, z := range ac.ZoneByID {
