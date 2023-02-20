@@ -280,7 +280,7 @@ func (m *AirConManager) targetMode() (myplace.AirConPower, myplace.AirConMode) {
 	// Cool until we're a little below the target temperature. This is an
 	// attempt to let the AC regulate the temperature. That is, we only switch
 	// the unit off if the AC is over-cooling.
-	const coolThreshold = -0.2
+	const coolThreshold = -0.1
 
 	// Don't start heating until we're below the target temperature. This is an
 	// attempt avoid continually switching between heating and cooling when
