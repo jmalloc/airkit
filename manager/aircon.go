@@ -2,9 +2,9 @@ package manager
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/brutella/hap"
 	"github.com/brutella/hap/accessory"
@@ -13,19 +13,19 @@ import (
 	"github.com/jmalloc/airkit/myplace"
 )
 
-const (
-	constantZoneAttempts = 3
-)
+// constantZoneSyncInterval is the minimum amount of time to wait between
+// attempts to close any constant zones that are not intended to be open.
+const constantZoneSyncInterval = 30 * time.Second
 
 // AirConManager manages the state of thermostat accessories for each zone of an
 // air-conditioning unit.
 type AirConManager struct {
 	commands chan<- []myplace.Command
 
-	m                    sync.Mutex
-	ac                   *myplace.AirCon
-	zoneAccessories      []*zoneAccessories
-	constantZoneAttempts int
+	m               sync.Mutex
+	ac              *myplace.AirCon
+	zoneAccessories []*zoneAccessories
+	commandsSentAt  time.Time
 }
 
 type zoneAccessories struct {
@@ -53,7 +53,7 @@ func NewAirConManager(
 			func(v float64) {
 				m.m.Lock()
 				defer m.m.Unlock()
-				m.apply()
+				m.apply(false)
 			},
 		)
 
@@ -70,7 +70,7 @@ func NewAirConManager(
 
 				m.m.Lock()
 				defer m.m.Unlock()
-				m.apply()
+				m.apply(false)
 			},
 		)
 
@@ -157,7 +157,7 @@ func (m *AirConManager) Update(s *myplace.System) {
 	m.update(ac)
 	m.ac = ac
 
-	m.apply()
+	m.apply(true)
 }
 
 // update updates the HomeKit accessories to match the air-conditioning unit.
@@ -196,13 +196,29 @@ func (m *AirConManager) update(ac *myplace.AirCon) {
 }
 
 // apply updates the air-conditioning unit to match HomeKit.
-func (m *AirConManager) apply() {
+func (m *AirConManager) apply(isPoll bool) {
 	var commands []myplace.Command
+	constantZoneClosures := 0
 
 	defer func() {
-		if len(commands) > 0 {
-			m.commands <- commands
+		if len(commands) == 0 {
+			return
 		}
+
+		now := time.Now()
+
+		// If this apply() call is a result of a poll of the AC's current state
+		// (as opposed to a settings change made by a human), then we want to
+		// avoid spamming the AC unit with updates that are only attempting to
+		// close constant zones that the AC unit thinks should remain open.
+		if isPoll &&
+			len(commands) == constantZoneClosures &&
+			now.Sub(m.commandsSentAt) < constantZoneSyncInterval {
+			return
+		}
+
+		m.commandsSentAt = now
+		m.commands <- commands
 	}()
 
 	for i, z := range m.ac.Zones {
@@ -230,10 +246,8 @@ func (m *AirConManager) apply() {
 	isCooling := mode == myplace.AirConModeCool
 	open, closed := m.partitionZones(isCooling)
 
-	modifiedNonConstantZones := false
 	for _, z := range open {
 		if z.State != myplace.ZoneStateOpen {
-			modifiedNonConstantZones = true
 			commands = append(commands, myplace.SetZoneState(m.ac.ID, z, myplace.ZoneStateOpen))
 		}
 	}
@@ -244,32 +258,13 @@ func (m *AirConManager) apply() {
 		}
 	}
 
-	closedConstantZones := false
 	for _, z := range closed {
-		if m.ac.Zones[z.Number-1].State != myplace.ZoneStateClosed {
-			if m.ac.IsConstantZone(z) {
-				closedConstantZones = true
-
-				if m.constantZoneAttempts >= constantZoneAttempts {
-					continue
-				}
-			} else {
-				modifiedNonConstantZones = true
-			}
-
+		if z.State != myplace.ZoneStateClosed {
 			commands = append(commands, myplace.SetZoneState(m.ac.ID, z, myplace.ZoneStateClosed))
-		}
-	}
 
-	if modifiedNonConstantZones {
-		if m.constantZoneAttempts > constantZoneAttempts {
-			log.Print("enabling closing of constant zones")
-		}
-		m.constantZoneAttempts = 0
-	} else if closedConstantZones {
-		m.constantZoneAttempts++
-		if m.constantZoneAttempts == constantZoneAttempts+1 {
-			log.Print("disabling closing of constant zones")
+			if m.ac.IsConstantZone(z) {
+				constantZoneClosures++
+			}
 		}
 	}
 }
