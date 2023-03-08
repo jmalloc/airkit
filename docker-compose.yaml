@@ -3,6 +3,7 @@ version: "3.8"
 services:
   airkit:
     image: ghcr.io/jmalloc/airkit:latest
+    restart: always
     network_mode: host
     environment:
       AIRKIT_API_HOST: "10.0.100.245"
